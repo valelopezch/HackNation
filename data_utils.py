@@ -5,11 +5,11 @@ from slugify import slugify
 from datetime import datetime
 
 DATA_DIR = "data"
-USERS_FILE = os.path.join(DATA_DIR, "users.csv")
-RECRUITERS_FILE = os.path.join(DATA_DIR, "recruiters.csv")
-JOBS_FILE = os.path.join(DATA_DIR, "jobs.csv")
-CANDIDATES_FILE = os.path.join(DATA_DIR, "candidates.csv")
-APPLICATIONS_FILE = os.path.join(DATA_DIR, "applications.csv")
+USERS_FILE = os.path.join(DATA_DIR, "users_template.csv")
+RECRUITERS_FILE = os.path.join(DATA_DIR, "recruiters_template.csv")
+JOBS_FILE = os.path.join(DATA_DIR, "jobs_template.csv")
+CANDIDATES_FILE = os.path.join(DATA_DIR, "candidates_template.csv")
+APPLICATIONS_FILE = os.path.join(DATA_DIR, "applications_template.csv")
 
 # -----------------------------
 # Loading & integrity utilities
