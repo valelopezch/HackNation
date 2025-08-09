@@ -4,7 +4,8 @@ import pandas as pd
 from data_utils import (
     load_users, load_recruiters, load_jobs, load_candidates, load_applications,
     authenticate_user, save_application, apps_for_job, apps_for_candidate,
-    candidate_skills_map, global_skill_pool_from_candidates
+    candidate_skills_map, global_skill_pool_from_candidates, upsert_recruiter_profile, 
+    create_user, upsert_candidate_profile
 )
 from embed import HybridMatcher, build_candidate_text
 from validate import build_quiz, grade_quiz
@@ -66,23 +67,132 @@ def header_nav():
     st.markdown("---")
 
 def login_view():
-    st.title("Sign in")
-    st.caption("Use any account present in **data/users.csv**.")
-    with st.form("login"):
-        u = st.text_input("Email")
-        p = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign in")
-    if submitted:
-        auth = authenticate_user(u, p)
-        if auth:
-            st.session_state.auth_ok = True
-            st.session_state.user_email = auth["email"]
-            st.session_state.role = auth["role"]
-            st.session_state.full_name = auth["full_name"]
-            st.success(f"Welcome, {st.session_state.full_name or st.session_state.user_email}!")
-            st.rerun()
-        else:
-            st.error("Invalid credentials")
+    st.title("Welcome to TalentAI")
+
+    tabs = st.tabs(["Sign in", "Sign up"])
+
+    # ---------- SIGN IN ----------
+    with tabs[0]:
+        st.caption("Use any account present in **data/users.csv**.")
+        with st.form("login"):
+            u = st.text_input("Email")
+            p = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Sign in")
+        if submitted:
+            auth = authenticate_user(u, p)
+            if auth:
+                st.session_state.auth_ok = True
+                st.session_state.user_email = auth["email"]
+                st.session_state.role = auth["role"]
+                st.session_state.full_name = auth["full_name"]
+                st.success(f"Welcome, {st.session_state.full_name or st.session_state.user_email}!")
+                st.experimental_rerun()
+            else:
+                st.error("Invalid credentials")
+
+    # ---------- SIGN UP ----------
+    with tabs[1]:
+        st.caption("Create a new account")
+
+        with st.form("signup", clear_on_submit=False):
+            # Basic (always visible)
+            st.markdown("### Initial details")
+            colA, colB = st.columns(2)
+            with colA:
+                email = st.text_input("Email *")
+                full_name = st.text_input("Full name *")
+                password = st.text_input("Password *", type="password")
+            with colB:
+                password2 = st.text_input("Confirm password *", type="password")
+                location = st.text_input("Location")
+                role = st.selectbox("Role *", ["", "candidate", "recruiter"], index=0)
+
+            # Initialize role-specific defaults to avoid NameError
+            # Candidate-only fields
+            cand_title = about = skills = preferred_type = seniority = ""
+            yoe = "0"
+            # Recruiter-only fields
+            company_name = company_site = company_bio = ""
+            posted_jobs = 0
+
+            # Role-specific sections appear ONLY after a role is chosen
+            if role == "candidate":
+                st.markdown("### Candidate details")
+                c1, c2 = st.columns(2)
+                with c1:
+                    cand_title = st.text_input("Candidate title (e.g., ML Engineer)")
+                    yoe = st.text_input("Years of experience (YOE)", value="0")
+                    seniority = st.text_input("Seniority (e.g., Mid-level / Intermediate)")
+                with c2:
+                    preferred_type = st.text_input("Preferred employment type (e.g., Full Time)")
+                    skills = st.text_input("Skills (comma-separated)")
+                about = st.text_area("About", height=90)
+
+            elif role == "recruiter":
+                st.markdown("### Recruiter details")
+                r1, r2 = st.columns(2)
+                with r1:
+                    company_name = st.text_input("Company name")
+                    company_site = st.text_input("Company site (URL)")
+                with r2:
+                    company_bio = st.text_area("Company bio", height=90)
+                posted_jobs = 0  # starting point
+
+            agree = st.checkbox("I confirm the information is correct", value=True)
+            submit_up = st.form_submit_button("Create account")
+
+        # Handle submit
+        if submit_up:
+            if not email or not full_name or not password or not password2 or not role:
+                st.error("Please fill all required fields (*), including Role.")
+            elif password != password2:
+                st.error("Passwords do not match.")
+            else:
+                try:
+                    # Create user
+                    created_user = create_user(
+                        email=email, password=password, role=role,
+                        full_name=full_name, location=location
+                    )
+
+                    # Create role profile
+                    if role == "candidate":
+                        upsert_candidate_profile(
+                            candidate_email=email,
+                            full_name=full_name,
+                            candidate_title=cand_title,
+                            about=about,
+                            location=location,
+                            preferred_employment_type=preferred_type,
+                            yoe=yoe,
+                            seniority=seniority,
+                            skills=skills
+                        )
+                    else:  # recruiter
+                        upsert_recruiter_profile(
+                            email=email,
+                            company_name=company_name,
+                            company_site=company_site,
+                            bio=company_bio,
+                            posted_jobs=posted_jobs
+                        )
+
+                    # Auto-login and refresh caches so new records appear immediately
+                    st.success("Account created! Logging you in…")
+                    st.session_state.auth_ok = True
+                    st.session_state.user_email = created_user["email"]
+                    st.session_state.role = created_user["role"]
+                    st.session_state.full_name = created_user["full_name"]
+
+                    # st.cache_data.clear()
+                    # st.cache_resource.clear()
+                    # st.experimental_rerun()
+
+                except ValueError as ve:
+                    st.error(str(ve))
+                except Exception as e:
+                    st.exception(e)
+
 
 # -----------------------------
 # Recruiter views
@@ -121,11 +231,33 @@ def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame):
     if apps.empty:
         st.info("No applicants yet.")
     else:
-        # Merge by candidate_email to fetch score_match from global ranking
-        merged = apps.merge(global_rank, on="candidate_email", how="left") \
-                     .sort_values(["score_match","score_validation"], ascending=False)
-        st.dataframe(merged[["candidate_email","score_validation","score_match","status","created_at"]],
-                     use_container_width=True, height=300)
+        appl_emails = apps["candidate_email"].unique().tolist()
+        appl_cands  = cands[cands["candidate_email"].isin(appl_emails)]
+
+        skills_map = candidate_skills_map(cands)
+        rank_appl = matcher.score_job_vs_candidates(job_row, appl_cands, skills_map)
+
+        # Renombrar para evitar colisión
+        rank_appl = rank_appl[["candidate_email", "score_match"]].rename(
+            columns={"score_match": "score_match_rank"}
+        )
+
+        merged = apps.merge(rank_appl, on="candidate_email", how="left")
+
+        # Preferimos el score calculado al vuelo; fallback al guardado en apps
+        merged["score_match_final"] = merged["score_match_rank"].combine_first(
+            merged["score_match"]
+        )
+
+        merged = merged.sort_values(
+            ["score_match_final", "score_validation"], ascending=False
+        )
+
+        st.dataframe(
+            merged[["candidate_email", "score_validation", "score_match_final", "status", "created_at"]]
+                .rename(columns={"score_match_final": "score_match"}),
+            use_container_width=True, height=300
+        )
 
 # -----------------------------
 # Candidate views
