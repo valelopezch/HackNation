@@ -1,0 +1,6 @@
+job_id,posted_by,topic,job_title,site (remote country),tasks,Perks/Benefits,Skills/Tech-stack required,Educational requirements,seniority,yoe,employment_type,extra_info,created_at
+ai-engineer-001,recruiter@demo,Computer Vision,Senior AI Engineer,Remote (Europe),Build and deploy CV models,"Remote work, bonuses","PyTorch, TensorFlow, OpenCV",MSc in AI or related field,Senior level,5,Full Time,Immediate start,2025-08-09T09:30:00
+mlops-engineer-001,recruiter2@demo,MLOps,MLOps Engineer,"Berlin, Germany",Manage ML pipelines,"Flexible hours, health insurance","Kubeflow, Docker, Kubernetes",BSc in CS or related,Mid-level,3,Full Time,AWS experience required,2025-08-09T09:35:00
+nlp-engineer-001,recruiter3@demo,LLMOps,NLP Engineer,Remote (USA),Fine-tune LLM models,Stock options,"Transformers, HuggingFace, Python",MSc in Data Science,Mid-level,4,Full Time,Focus on GPT-based models,2025-08-09T09:40:00
+data-scientist-001,recruiter4@demo,Data Science,Data Scientist,"London, UK",Data analysis and modeling,Training budget,"Python, Pandas, Scikit-learn",BSc in Mathematics,Entry-level,1,Full Time,Mentorship program,2025-08-09T09:45:00
+cv-intern-001,recruiter5@demo,Computer Vision,Computer Vision Intern,"Madrid, Spain",Assist in CV projects,Lunch vouchers,"OpenCV, Python",Currently studying,Internship,0,Internship,Flexible schedule,2025-08-09T09:50:00

@@ -1,0 +1,6 @@
+app_id,job_id,candidate_email,status,score_validation,score_match,created_at
+8af12c1e,ai-engineer-001,cand_ana@demo,applied,80,0.92,2025-08-09T11:45:00
+8af12c1f,mlops-engineer-001,cand_john@demo,applied,90,0.88,2025-08-09T11:50:00
+8af12c20,nlp-engineer-001,cand_sara@demo,applied,85,0.89,2025-08-09T11:55:00
+8af12c21,data-scientist-001,cand_lee@demo,applied,70,0.8,2025-08-09T12:00:00
+8af12c22,cv-intern-001,cand_maria@demo,applied,75,0.85,2025-08-09T12:05:00

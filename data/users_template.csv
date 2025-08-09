@@ -1,0 +1,6 @@
+email,password_hash,role,full_name,location,created_at
+cand_ana@demo,$2b$12$hashcand,candidate,Ana Candidate,Colombia,2025-08-09T10:15:00
+recruiter@demo,$2b$12$hashrec,recruiter,Rae Recruiter,Germany,2025-08-09T10:20:00
+cand_john@demo,$2b$12$hashjohn,candidate,John Data,USA,2025-08-09T10:25:00
+recruiter2@demo,$2b$12$hashrec2,recruiter,Lee Talent,UK,2025-08-09T10:30:00
+cand_maria@demo,$2b$12$hashmaria,candidate,Maria Vision,Spain,2025-08-09T10:35:00
