@@ -159,3 +159,109 @@ def global_skill_pool_from_candidates(cands: pd.DataFrame) -> list[str]:
     """
     all_text = ", ".join([str(x) for x in cands.get("skills","").tolist()]).split(",")
     return sorted(set(s.strip() for s in all_text if str(s).strip()))
+
+# -----------------------------
+# SIGNUP HELPERS 
+# -----------------------------
+
+def _bcrypt_hash(password_plain: str) -> str:
+    """
+    Return a bcrypt hash if bcrypt is available, else return the plaintext
+    (ONLY for hackathon/demo). In production, require bcrypt.
+    """
+    if not password_plain:
+        return ""
+    try:
+        import bcrypt
+        salt = bcrypt.gensalt(rounds=12)
+        return bcrypt.hashpw(password_plain.encode("utf-8"), salt).decode("utf-8")
+    except Exception:
+        # Fallback (demo only)
+        return password_plain
+
+def email_exists(email: str) -> bool:
+    users = load_users()
+    if users.empty:
+        return False
+    return users["email"].str.lower().eq(str(email).lower()).any()
+
+def create_user(email: str, password: str, role: str, full_name: str = "", location: str = "") -> dict:
+    """
+    Create a new user in users.csv. Returns the created row as a dict.
+    """
+    if role not in {"candidate", "recruiter"}:
+        raise ValueError("role must be 'candidate' or 'recruiter'")
+    if email_exists(email):
+        raise ValueError("email already exists")
+
+    users = load_users()
+    new_row = {
+        "email": email.strip(),
+        "password_hash": _bcrypt_hash(password),
+        "role": role,
+        "full_name": full_name or "",
+        "location": location or "",
+        "created_at": _iso_now()
+    }
+    users = pd.concat([users, pd.DataFrame([new_row])], ignore_index=True)
+    users.to_csv(USERS_FILE, index=False)
+    return new_row
+
+def upsert_candidate_profile(
+    candidate_email: str,
+    full_name: str = "",
+    candidate_title: str = "",
+    about: str = "",
+    location: str = "",
+    preferred_employment_type: str = "",
+    yoe: int | float | str = "",
+    seniority: str = "",
+    skills: str = ""
+) -> dict:
+    cands = load_candidates()
+    idx = cands.index[cands["candidate_email"].str.lower() == str(candidate_email).lower()]
+    row = {
+        "candidate_email": candidate_email,
+        "full_name": full_name,
+        "candidate_title": candidate_title,
+        "about": about,
+        "location": location,
+        "preferred_employment_type": preferred_employment_type,
+        "yoe": yoe,
+        "seniority": seniority,
+        "skills": skills,
+        "created_at": _iso_now()
+    }
+    if len(idx) > 0:
+        # update
+        for k, v in row.items():
+            cands.loc[idx, k] = v
+    else:
+        # insert
+        cands = pd.concat([cands, pd.DataFrame([row])], ignore_index=True)
+    cands.to_csv(CANDIDATES_FILE, index=False)
+    return row
+
+def upsert_recruiter_profile(
+    email: str,
+    company_name: str = "",
+    company_site: str = "",
+    bio: str = "",
+    posted_jobs: int | str = ""
+) -> dict:
+    recs = load_recruiters()
+    idx = recs.index[recs["email"].str.lower() == str(email).lower()]
+    row = {
+        "email": email,
+        "company_name": company_name,
+        "company_site": company_site,
+        "bio": bio,
+        "posted_jobs": posted_jobs if posted_jobs != "" else 0
+    }
+    if len(idx) > 0:
+        for k, v in row.items():
+            recs.loc[idx, k] = v
+    else:
+        recs = pd.concat([recs, pd.DataFrame([row])], ignore_index=True)
+    recs.to_csv(RECRUITERS_FILE, index=False)
+    return row
