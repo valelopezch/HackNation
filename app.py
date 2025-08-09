@@ -2,193 +2,228 @@ import streamlit as st
 import pandas as pd
 
 from data_utils import (
-    load_jobs, load_candidates, load_skills, list_global_skill_pool,
-    load_applications, save_application, apps_for_job, apps_for_candidate
+    load_users, load_recruiters, load_jobs, load_candidates, load_applications,
+    authenticate_user, save_application, apps_for_job, apps_for_candidate,
+    candidate_skills_map, global_skill_pool_from_candidates
 )
-from embed import HybridMatcher, build_candidate_text
+from embed import TFIDFMatcher, build_candidate_text
 from validate import build_quiz, grade_quiz
 
 st.set_page_config(page_title="TalentAI", page_icon="🧠", layout="wide")
 
-# --- Session keys
+# -----------------------------
+# Session & constants
+# -----------------------------
 DEFAULTS = {
     "auth_ok": False,
     "user_email": "",
     "role": "",              # "recruiter" or "candidate"
     "full_name": "",
-    "matcher_ready": False,
 }
 
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# --- Demo users for Day 1 (swap for CSV/DB later)
-USERS = {
-    "recruiter@demo": {"password": "recruit123", "role": "recruiter", "full_name": "Rae Recruiter"},
-    "cand_ana@demo":  {"password": "candidate123", "role": "candidate", "full_name": "Ana Candidate"},
-}
+# -----------------------------
+# Cached data & resources
+# -----------------------------
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def _load_all_data():
+    users = load_users()
+    recruiters = load_recruiters()
     jobs = load_jobs()
     cands = load_candidates()
-    skills_df, skills_map = load_skills()
-    global_skill_pool = list_global_skill_pool(skills_map)
     apps = load_applications()
-    return jobs, cands, skills_df, skills_map, global_skill_pool, apps
+    return users, recruiters, jobs, cands, apps
 
-@st.cache_resource
-def _matcher(jobs_df, skills_map):
-    # Creamos el matcher híbrido con almacenamiento persistente
-    return HybridMatcher(jobs_df, skills_map=skills_map, store_dir="./vector_store")
+@st.cache_resource(show_spinner=False)
+def _matcher(jobs_df: pd.DataFrame):
+    return TFIDFMatcher(jobs_df)
+
+# -----------------------------
+# UI helpers
+# -----------------------------
 
 def logout():
     for k, v in DEFAULTS.items():
         st.session_state[k] = v
     st.rerun()
 
-def login_view():
-    st.title("TalentAI - Sign in")
-    with st.form("login"):
-        u = st.text_input("Email / User")
-        p = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign in")
-    if submitted:
-        if u in USERS and USERS[u]["password"] == p:
-            st.session_state.auth_ok = True
-            st.session_state.user_email = u
-            st.session_state.role = USERS[u]["role"]
-            st.session_state.full_name = USERS[u]["full_name"]
-            st.success(f"Welcome, {st.session_state.full_name}!")
-            st.experimental_rerun()
-        else:
-            st.error("Invalid credentials")
-
 def header_nav():
-    cols = st.columns([6,1,1,1])
+    cols = st.columns([6,1.5,2,1.2])
     with cols[0]:
         st.subheader("🧠 TalentAI")
-    if st.session_state.auth_ok:
+    if st.session_state.get("auth_ok"):
         with cols[1]:
-            st.write(f"**{st.session_state.role.capitalize()}**")
+            st.caption(f"Role: **{st.session_state['role'].capitalize()}**")
         with cols[2]:
-            st.write(st.session_state.user_email)
+            st.caption(st.session_state["user_email"])
         with cols[3]:
             if st.button("Logout", use_container_width=True):
                 logout()
     st.markdown("---")
 
-def recruiter_home(jobs, cands, skills_map):
+def login_view():
+    st.title("Sign in")
+    st.caption("Use any account present in **data/users.csv**.")
+    with st.form("login"):
+        u = st.text_input("Email")
+        p = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Sign in")
+    if submitted:
+        auth = authenticate_user(u, p)
+        if auth:
+            st.session_state.auth_ok = True
+            st.session_state.user_email = auth["email"]
+            st.session_state.role = auth["role"]
+            st.session_state.full_name = auth["full_name"]
+            st.success(f"Welcome, {st.session_state.full_name or st.session_state.user_email}!")
+            st.experimental_rerun()
+        else:
+            st.error("Invalid credentials")
+
+# -----------------------------
+# Recruiter views
+# -----------------------------
+
+def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame):
     st.header("Recruiter Dashboard")
+    my_jobs = jobs[jobs["posted_by"].str.lower() == st.session_state.user_email.lower()] \
+              if "posted_by" in jobs.columns else jobs
 
-    # Show my jobs
-    my = jobs[jobs["posted_by"] == st.session_state.user_email] if "posted_by" in jobs.columns else jobs
     st.subheader("My Jobs")
-    st.dataframe(my[["job_id","job_title","topic","site (remote country)","seniority","yoe","employment_type"]], use_container_width=True)
+    if my_jobs.empty:
+        st.info("No jobs found for your account.")
+        return
 
-    # Select job
-    job_id = st.selectbox("Select a job to analyze", my["job_id"].tolist())
-    job_row = my[my["job_id"] == job_id].iloc[0]
-
-    matcher = _matcher(jobs, skills_map)
-    # Overall best candidates (global)
-    global_rank = matcher.score_job_vs_candidates(
-        job_row,
-        cands,
-        skills_map,
-        w_tfidf=0.4, w_emb=0.4, w_skill=0.2,
-        top_k=50
+    st.dataframe(
+        my_jobs[["job_id","job_title","topic","site (remote country)","seniority","yoe","employment_type"]],
+        use_container_width=True, height=280
     )
 
+    # Select a job
+    job_id = st.selectbox("Select a job to analyze", my_jobs["job_id"].tolist())
+    job_row = my_jobs[my_jobs["job_id"] == job_id].iloc[0]
+
+    # Build candidate skills map from candidates.csv (since skills.csv was removed)
+    skills_map = candidate_skills_map(cands)
+
+    matcher = _matcher(jobs)
+
+    # Global top matches (all candidates)
+    global_rank = matcher.score_job_vs_candidates(job_row, cands, skills_map).head(20)
     st.subheader("Top Matches (All Candidates)")
-    st.dataframe(global_rank, use_container_width=True, height=350)
+    st.dataframe(global_rank, use_container_width=True, height=360)
 
     # Applicants-only leaderboard
-    apps = apps_for_job(job_id)
-    merged = apps.merge(global_rank, on="candidate_email", how="left").sort_values("score_match", ascending=False)
     st.subheader("Top Matches (Applicants Only)")
-    if len(merged) == 0:
+    apps = apps_for_job(job_id)
+    if apps.empty:
         st.info("No applicants yet.")
     else:
-        st.dataframe(merged[["candidate_email","score_validation","score_match","created_at"]], use_container_width=True)
+        # Merge by candidate_email to fetch score_match from global ranking
+        merged = apps.merge(global_rank, on="candidate_email", how="left") \
+                     .sort_values(["score_match","score_validation"], ascending=False)
+        st.dataframe(merged[["candidate_email","score_validation","score_match","status","created_at"]],
+                     use_container_width=True, height=300)
 
-def candidate_home(jobs, cands, skills_map, global_skill_pool):
+# -----------------------------
+# Candidate views
+# -----------------------------
+
+def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
     st.header("Candidate")
-    me = cands[cands["candidate_email"] == st.session_state.user_email]
+
+    me = cands[cands["candidate_email"].str.lower() == st.session_state.user_email.lower()]
     if me.empty:
-        st.warning("We didn’t find your profile in candidates.csv. We’ll use a minimal profile.")
-        me_row = pd.Series({"candidate_email": st.session_state.user_email, "full_name": st.session_state.full_name})
-        cand_skills_set = set()
+        st.warning("We didn’t find your profile in candidates.csv. A minimal profile will be used.")
+        me_row = pd.Series({
+            "candidate_email": st.session_state.user_email,
+            "full_name": st.session_state.full_name,
+            "candidate_title": "",
+            "about": "",
+            "skills": "",
+            "yoe": 0,
+            "seniority": "",
+            "location": "",
+            "preferred_employment_type": ""
+        })
     else:
         me_row = me.iloc[0]
-        cand_skills_set = set(me_row.get("skills", []))
 
-    # Build candidate text
-    from embed import build_candidate_text
-    skills_text = skills_map.get(st.session_state.user_email, "")
+    skills_text = str(me_row.get("skills",""))
     cand_text = build_candidate_text(me_row, skills_text)
 
-    matcher = _matcher(jobs, skills_map)
-    rank = matcher.score_candidate_vs_jobs(
-        cand_text,
-        me_row,
-        cand_skills_set,
-        w_tfidf=0.4, w_emb=0.4, w_skill=0.2,
-        top_k=20
-    )
+    matcher = _matcher(jobs)
+    rank = matcher.score_candidate_vs_jobs(cand_text, me_row).head(20)
 
     st.subheader("Top Matching Jobs")
-    st.dataframe(rank[["job_id","job_title","topic","score_match"]], use_container_width=True, height=350)
+    st.dataframe(rank[["job_id","job_title","topic","score_match"]], use_container_width=True, height=360)
 
-    # Apply & validate
+    # Build global skill pool from candidates for the validation quiz decoys
+    global_skill_pool = global_skill_pool_from_candidates(cands)
+
+    # Apply + validation flow
     with st.expander("Apply to a job"):
         chosen = st.selectbox("Choose a job to apply", rank["job_id"].tolist())
         if chosen:
             job_row = jobs[jobs["job_id"] == chosen].iloc[0]
             st.write(f"**{job_row['job_title']}** — {job_row.get('topic','')}")
-            # Build quiz
             quiz = build_quiz(job_row, global_skill_pool)
+
             answers = []
-            for i, q in enumerate(quiz, 1):
+            for i, q in enumerate(quiz, start=1):
                 st.markdown(f"**Q{i}. {q['question']}**")
                 if q.get("code"):
                     st.code(q["code"], language="python")
                 if q["type"] == "single":
-                    ans = st.radio("", options=list(range(len(q["options"]))), format_func=lambda k: q["options"][k], key=f"q{i}")
+                    ans = st.radio("", options=list(range(len(q["options"]))),
+                                   format_func=lambda k: q["options"][k], key=f"q{i}")
                 else:
-                    ans = st.multiselect("", options=list(range(len(q["options"]))), format_func=lambda k: q["options"][k], key=f"q{i}")
+                    ans = st.multiselect("", options=list(range(len(q["options"]))),
+                                         format_func=lambda k: q["options"][k], key=f"q{i}")
                 answers.append(ans)
 
             if st.button("Submit validation"):
                 res = grade_quiz(answers, quiz)
                 st.success(f"Validation score: {res['score_raw']}/{res['score_max']} ({res['score_pct']}%)")
 
-                # Match score for this job (already computed above)
+                # Retrieve match score for this job from current ranking
                 mrow = rank[rank["job_id"] == chosen].iloc[0]
-                save_application(chosen, st.session_state.user_email, res["score_pct"], round(float(mrow["score_match"]), 4))
-
+                saved = save_application(
+                    chosen,
+                    st.session_state.user_email,
+                    res["score_pct"],
+                    round(float(mrow["score_match"]), 4),
+                )
                 st.balloons()
-                st.info("Successfully applied! You can see your applications below.")
+                st.info("Successfully applied! You can review your applications below.")
 
     st.subheader("My Applications")
     apps = apps_for_candidate(st.session_state.user_email)
-    st.dataframe(apps, use_container_width=True)
+    if apps.empty:
+        st.caption("No applications yet.")
+    else:
+        st.dataframe(apps, use_container_width=True, height=260)
+
+# -----------------------------
+# Router
+# -----------------------------
 
 def home_page():
     header_nav()
-    jobs, cands, skills_df, skills_map, global_skill_pool, _apps = _load_all_data()
+    _users, _recruiters, jobs, cands, _apps = _load_all_data()
 
-    # Keep credentials if already logged in
-    if not st.session_state.auth_ok:
+    if not st.session_state.get("auth_ok"):
         login_view()
         return
 
-    # Role router
     if st.session_state.role == "recruiter":
-        recruiter_home(jobs, cands, skills_map)
+        recruiter_home(jobs, cands)
     elif st.session_state.role == "candidate":
-        candidate_home(jobs, cands, skills_map, global_skill_pool)
+        candidate_home(jobs, cands)
     else:
         st.warning("Unknown role. Please logout and sign in again.")
 
