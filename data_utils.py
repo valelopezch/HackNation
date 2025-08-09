@@ -2,7 +2,12 @@ import os
 import uuid
 import pandas as pd
 from slugify import slugify
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from faker import Faker
+import re
+import random
+
+fake = Faker()
 
 DATA_DIR = "data"
 USERS_FILE = os.path.join(DATA_DIR, "users_template.csv")
@@ -265,3 +270,77 @@ def upsert_recruiter_profile(
         recs = pd.concat([recs, pd.DataFrame([row])], ignore_index=True)
     recs.to_csv(RECRUITERS_FILE, index=False)
     return row
+
+## Handle csv files (pdf): 1. save and read pdf 2. obtain data
+def calculate_yoe(text):
+    matches = re.findall(r'(\d+)\s*(?:\+?\s*)?(?:years?|yrs?)', text, flags=re.IGNORECASE)
+    years = [int(m) for m in matches]
+    return max(years) if years else 0
+
+def infer_seniority(yoe):
+    if yoe < 2:
+        return "Junior"
+    elif yoe < 5:
+        return "Mid-level"
+    elif yoe < 10:
+        return "Senior"
+    else:
+        return "Lead/Principal"
+
+def extract_candidate_title(text):
+    match = re.search(r'(?:Title|Position|Role|Designation)\s*[:-]?\s*(.+)', text, re.IGNORECASE)
+    if match:
+        return match.group(1).split('\n')[0].strip()
+
+    # Try from first few lines
+    lines = text.strip().split("\n")
+    for line in lines[:5]:
+        if any(word.lower() in line.lower() for word in 
+               ["engineer", "scientist", "developer", "manager", "analyst"]):
+            return line.strip()
+    return ""
+
+def extract_about(text):
+    about = re.sub(r'\s+', ' ', text.strip())
+    return about[:500] + ("..." if len(about) > 500 else "")
+
+def extract_employment_type(text):
+    types = ["full-time", "part-time", "contract", "internship", "freelance", "temporary"]
+    for t in types:
+        if re.search(t, text, re.IGNORECASE):
+            return t.capitalize()
+    return ""
+
+def extract_location(text):
+    # Try to find patterns like "City, Country"
+    match = re.search(r'([A-Z][a-zA-Z\s]+,\s*[A-Z][a-zA-Z]+)', text)
+    if match:
+        return match.group(1).strip()
+    return "NA"
+
+def random_created_at():
+    start = datetime.now() - timedelta(days=365*2)
+    end = datetime.now()
+    return (start + (end - start) * random.random()).isoformat()
+
+def extract_cv_fields(cv_text, name, email):
+    location = extract_location(cv_text)
+    created_at = random_created_at()
+
+    yoe = calculate_yoe(cv_text)
+    seniority = infer_seniority(yoe)
+    title = extract_candidate_title(cv_text)
+    about = extract_about(cv_text)
+    emp_type = extract_employment_type(cv_text)
+
+    return {
+        "candidate_email": email,
+        "full_name": name,
+        "candidate_title": title,
+        "about": about,
+        "location": location,
+        "preferred_employment_type": emp_type,
+        "yoe": yoe,
+        "seniority": seniority,
+        "created_at": created_at
+    }

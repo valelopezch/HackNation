@@ -1,14 +1,18 @@
 import streamlit as st
 import pandas as pd
+import os
 
 from data_utils import (
     load_users, load_recruiters, load_jobs, load_candidates, load_applications,
     authenticate_user, save_application, apps_for_job, apps_for_candidate,
     candidate_skills_map, global_skill_pool_from_candidates, upsert_recruiter_profile, 
-    create_user, upsert_candidate_profile
+    create_user, upsert_candidate_profile, extract_cv_fields,
 )
 from embed import HybridMatcher, build_candidate_text
 from validate import build_quiz, grade_quiz
+
+from PyPDF2 import PdfReader
+import tempfile
 
 st.set_page_config(page_title="TalentAI", page_icon="🧠", layout="wide")
 
@@ -86,7 +90,7 @@ def login_view():
                 st.session_state.role = auth["role"]
                 st.session_state.full_name = auth["full_name"]
                 st.success(f"Welcome, {st.session_state.full_name or st.session_state.user_email}!")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Invalid credentials")
 
@@ -283,6 +287,65 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
     else:
         me_row = me.iloc[0]
 
+    # ---------------- New Section: Continue Button ----------------
+    st.subheader("Complete your profile")
+    choice = st.radio("How would you like to continue?", ["Upload PDF CV", "Fill Fields"], index=0)
+
+    if choice == "Upload PDF CV":
+        uploaded_file = st.file_uploader("Upload your CV (PDF only)", type=["pdf"])
+        if uploaded_file is not None:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                tmp_file.write(uploaded_file.read())
+                tmp_path = tmp_file.name
+
+            # Extract text from PDF
+            reader = PdfReader(tmp_path)
+            cv_text = ""
+            for page in reader.pages:
+                cv_text += page.extract_text() + "\n"
+
+            os.remove(tmp_path)
+
+            st.text_area("Extracted CV Text (read-only)", cv_text, height=200)
+
+            # Here you can call your CV parsing function
+            parsed_data = extract_cv_fields(cv_text,st.session_state.full_name, st.session_state.user_email)
+            
+            # Show extracted fields in a similar style to the minimal profile
+            st.subheader("Extracted Profile from CV")
+            st.write(f"**Full Name:** {parsed_data['full_name']}")
+            st.write(f"**Email:** {parsed_data['candidate_email']}")
+            st.write(f"**Title:** {parsed_data['candidate_title']}")
+            st.write(f"**About:** {parsed_data['about']}")
+            st.write(f"**Location:** {parsed_data['location']}")
+            st.write(f"**Preferred Employment Type:** {parsed_data['preferred_employment_type']}")
+            st.write(f"**Years of Experience:** {parsed_data['yoe']}")
+            st.write(f"**Seniority:** {parsed_data['seniority']}")
+            st.write(f"**Created At:** {parsed_data['created_at']}")
+
+    elif choice == "Fill Fields":
+        with st.form("manual_profile_form"):
+            full_name = st.text_input("Full Name", me_row["full_name"])
+            candidate_title = st.text_input("Professional Title", me_row["candidate_title"])
+            about = st.text_area("About", me_row["about"])
+            location = st.text_input("Location", me_row["location"])
+            preferred_employment_type = st.selectbox(
+                "Preferred Employment Type", ["Remote", "On-site", "Hybrid"], 
+                index=0 if not me_row["preferred_employment_type"] else
+                ["Remote", "On-site", "Hybrid"].index(me_row["preferred_employment_type"])
+            )
+            yoe = st.number_input("Years of Experience", min_value=0, step=1, value=int(me_row["yoe"]))
+            seniority = st.selectbox("Seniority", ["Junior", "Mid-level", "Senior"], 
+                                     index=0 if not me_row["seniority"] else
+                                     ["Junior", "Mid-level", "Senior"].index(me_row["seniority"]))
+
+            submitted = st.form_submit_button("Save Profile")
+            if submitted:
+                # Here you would save the filled data to DB
+                st.success("✅ Profile updated successfully!")
+    # ---------------------------------------------------------------
+
+    # Skills processing
     skills_text = str(me_row.get("skills",""))
     cand_skills = set(s.strip() for s in skills_text.split(",") if s.strip())
     cand_text = build_candidate_text(me_row, skills_text)
@@ -295,16 +358,13 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
     st.subheader("Top Matching Jobs")
     st.dataframe(rank[["job_id","job_title","topic","score_match"]], use_container_width=True, height=360)
 
-    # Build global skill pool from candidates for the validation quiz decoys
-    global_skill_pool = global_skill_pool_from_candidates(cands)
-
-    # Apply + validation flow
+    # Job application flow
     with st.expander("Apply to a job"):
         chosen = st.selectbox("Choose a job to apply", rank["job_id"].tolist())
         if chosen:
             job_row = jobs[jobs["job_id"] == chosen].iloc[0]
             st.write(f"**{job_row['job_title']}** — {job_row.get('topic','')}")
-            quiz = build_quiz(job_row, global_skill_pool)
+            quiz = build_quiz(job_row, global_skill_pool_from_candidates(cands))
 
             answers = []
             for i, q in enumerate(quiz, start=1):
@@ -322,10 +382,8 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
             if st.button("Submit validation"):
                 res = grade_quiz(answers, quiz)
                 st.success(f"Validation score: {res['score_raw']}/{res['score_max']} ({res['score_pct']}%)")
-
-                # Retrieve match score for this job from current ranking
                 mrow = rank[rank["job_id"] == chosen].iloc[0]
-                saved = save_application(
+                save_application(
                     chosen,
                     st.session_state.user_email,
                     res["score_pct"],
@@ -340,6 +398,8 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
         st.caption("No applications yet.")
     else:
         st.dataframe(apps, use_container_width=True, height=260)
+
+
 
 # -----------------------------
 # Router
