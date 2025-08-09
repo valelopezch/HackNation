@@ -5,7 +5,7 @@ from data_utils import (
     load_jobs, load_candidates, load_skills, list_global_skill_pool,
     load_applications, save_application, apps_for_job, apps_for_candidate
 )
-from embed import TFIDFMatcher, build_candidate_text
+from embed import HybridMatcher, build_candidate_text
 from validate import build_quiz, grade_quiz
 
 st.set_page_config(page_title="TalentAI", page_icon="🧠", layout="wide")
@@ -39,8 +39,9 @@ def _load_all_data():
     return jobs, cands, skills_df, skills_map, global_skill_pool, apps
 
 @st.cache_resource
-def _matcher(jobs_df):
-    return TFIDFMatcher(jobs_df)
+def _matcher(jobs_df, skills_map):
+    # Creamos el matcher híbrido con almacenamiento persistente
+    return HybridMatcher(jobs_df, skills_map=skills_map, store_dir="./vector_store")
 
 def logout():
     for k, v in DEFAULTS.items():
@@ -48,7 +49,7 @@ def logout():
     st.rerun()
 
 def login_view():
-    st.title("TalentAI – Sign in")
+    st.title("TalentAI - Sign in")
     with st.form("login"):
         u = st.text_input("Email / User")
         p = st.text_input("Password", type="password")
@@ -90,9 +91,15 @@ def recruiter_home(jobs, cands, skills_map):
     job_id = st.selectbox("Select a job to analyze", my["job_id"].tolist())
     job_row = my[my["job_id"] == job_id].iloc[0]
 
-    matcher = _matcher(jobs)
+    matcher = _matcher(jobs, skills_map)
     # Overall best candidates (global)
-    global_rank = matcher.score_job_vs_candidates(job_row, cands, skills_map).head(15)
+    global_rank = matcher.score_job_vs_candidates(
+        job_row,
+        cands,
+        skills_map,
+        w_tfidf=0.4, w_emb=0.4, w_skill=0.2,
+        top_k=50
+    )
 
     st.subheader("Top Matches (All Candidates)")
     st.dataframe(global_rank, use_container_width=True, height=350)
@@ -112,16 +119,24 @@ def candidate_home(jobs, cands, skills_map, global_skill_pool):
     if me.empty:
         st.warning("We didn’t find your profile in candidates.csv. We’ll use a minimal profile.")
         me_row = pd.Series({"candidate_email": st.session_state.user_email, "full_name": st.session_state.full_name})
+        cand_skills_set = set()
     else:
         me_row = me.iloc[0]
+        cand_skills_set = set(me_row.get("skills", []))
 
     # Build candidate text
     from embed import build_candidate_text
     skills_text = skills_map.get(st.session_state.user_email, "")
     cand_text = build_candidate_text(me_row, skills_text)
 
-    matcher = _matcher(jobs)
-    rank = matcher.score_candidate_vs_jobs(cand_text, me_row).head(20)
+    matcher = _matcher(jobs, skills_map)
+    rank = matcher.score_candidate_vs_jobs(
+        cand_text,
+        me_row,
+        cand_skills_set,
+        w_tfidf=0.4, w_emb=0.4, w_skill=0.2,
+        top_k=20
+    )
 
     st.subheader("Top Matching Jobs")
     st.dataframe(rank[["job_id","job_title","topic","score_match"]], use_container_width=True, height=350)
