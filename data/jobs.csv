@@ -1,3 +1,1 @@
-job_id,title,region,skills,description
-101,ML Engineer (CV),Remote,"['Python','PyTorch','MLOps']","We need a PyTorch‑first ML engineer with MLOps experience to productionize CV models…"
-102,LLMOps Engineer,EU,"['LLMOps','Kubernetes','Python']","Own prompt orchestration, evals, vector search, tracing…"
+job_id,posted_by,topic,job_title,site (remote country),tasks,Perks/Benefits,Skills/Tech-stack required,Educational requirements,seniority,yoe,employment_type,extra_info,created_at

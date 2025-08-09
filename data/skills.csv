@@ -1,9 +1,0 @@
-skill,synonyms
-Python,Py
-PyTorch,torch|pytorch lightning
-TensorFlow,tf|keras
-MLOps,ml ops|ml-ops|ml platform
-LLMOps,llm ops|prompt orchestration|rag
-AWS,amazon web services|sagemaker
-GCP,google cloud
-Kubernetes,k8s

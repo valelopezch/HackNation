@@ -1,3 +1,1 @@
-candidate_id,name,region,grad_year,availability,skills,profile_text
-1,Alex Doe,Remote,2021,Immediate,"['Python','PyTorch','MLOps','AWS']","Applied ML engineer with 3 years in CV and MLOps. Built CI/CD on AWS…"
-2,Sam Lee,EU,2019,30 days,"['TensorFlow','Kubernetes','LLMOps','GCP']","Shipped LLM APIs, vector DBs, prompt routing…"
+candidate_email,full_name,candidate_title,about,location,preferred_employment_type,yoe,seniority,created_at
