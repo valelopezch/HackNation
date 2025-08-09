@@ -15,7 +15,7 @@ st.set_page_config(page_title="TalentAI", page_icon="🧠", layout="wide")
 # Session & constants
 # -----------------------------
 DEFAULTS = {
-    "auth_ok": True,
+    "auth_ok": False,
     "user_email": "",
     "role": "",              # "recruiter" or "candidate"
     "full_name": "",
@@ -38,8 +38,8 @@ def _load_all_data():
     apps = load_applications()
     return users, recruiters, jobs, cands, apps
 
-@st.cache_resource(show_spinner=False)
-def _matcher(jobs_df: pd.DataFrame, skills_map: dict):
+@st.cache_resource(hash_funcs={pd.DataFrame: lambda _: None})
+def _matcher(jobs_df, skills_map):
     return HybridMatcher(jobs_df, skills_map=skills_map)
 
 # -----------------------------
@@ -80,7 +80,7 @@ def login_view():
             st.session_state.role = auth["role"]
             st.session_state.full_name = auth["full_name"]
             st.success(f"Welcome, {st.session_state.full_name or st.session_state.user_email}!")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Invalid credentials")
 
@@ -217,8 +217,9 @@ def home_page():
     header_nav()
     _users, _recruiters, jobs, cands, _apps = _load_all_data()
 
-    cands["skills"] = cands["skills"].apply(lambda s: [x.strip() for x in str(s).split(",") if x.strip()])
-    jobs["skills"] = jobs["Skills/Tech-stack required"].apply(lambda s: [x.strip() for x in str(s).split(",") if x.strip()])
+    _split = lambda s: tuple(x.strip() for x in str(s).split(",") if x.strip())
+    cands["skills"] = cands["skills"].apply(_split)
+    jobs["skills"]  = jobs["Skills/Tech-stack required"].apply(_split)
 
     skills_map = candidate_skills_map(cands)
     matcher = _matcher(jobs, skills_map)

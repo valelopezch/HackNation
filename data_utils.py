@@ -2,7 +2,7 @@ import os
 import uuid
 import pandas as pd
 from slugify import slugify
-from datetime import datetime
+from datetime import datetime, timezone
 
 DATA_DIR = "data"
 USERS_FILE = os.path.join(DATA_DIR, "users_template.csv")
@@ -16,7 +16,7 @@ APPLICATIONS_FILE = os.path.join(DATA_DIR, "applications_template.csv")
 # -----------------------------
 
 def _iso_now() -> str:
-    return datetime.utcnow().isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 def _ensure_file(path: str, columns: list[str]):
     if not os.path.exists(path):
