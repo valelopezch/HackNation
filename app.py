@@ -121,11 +121,33 @@ def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame):
     if apps.empty:
         st.info("No applicants yet.")
     else:
-        # Merge by candidate_email to fetch score_match from global ranking
-        merged = apps.merge(global_rank, on="candidate_email", how="left") \
-                     .sort_values(["score_match","score_validation"], ascending=False)
-        st.dataframe(merged[["candidate_email","score_validation","score_match","status","created_at"]],
-                     use_container_width=True, height=300)
+        appl_emails = apps["candidate_email"].unique().tolist()
+        appl_cands  = cands[cands["candidate_email"].isin(appl_emails)]
+
+        skills_map = candidate_skills_map(cands)
+        rank_appl = matcher.score_job_vs_candidates(job_row, appl_cands, skills_map)
+
+        # Renombrar para evitar colisión
+        rank_appl = rank_appl[["candidate_email", "score_match"]].rename(
+            columns={"score_match": "score_match_rank"}
+        )
+
+        merged = apps.merge(rank_appl, on="candidate_email", how="left")
+
+        # Preferimos el score calculado al vuelo; fallback al guardado en apps
+        merged["score_match_final"] = merged["score_match_rank"].combine_first(
+            merged["score_match"]
+        )
+
+        merged = merged.sort_values(
+            ["score_match_final", "score_validation"], ascending=False
+        )
+
+        st.dataframe(
+            merged[["candidate_email", "score_validation", "score_match_final", "status", "created_at"]]
+                .rename(columns={"score_match_final": "score_match"}),
+            use_container_width=True, height=300
+        )
 
 # -----------------------------
 # Candidate views
