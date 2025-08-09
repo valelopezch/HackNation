@@ -6,7 +6,7 @@ from data_utils import (
     authenticate_user, save_application, apps_for_job, apps_for_candidate,
     candidate_skills_map, global_skill_pool_from_candidates
 )
-from embed import TFIDFMatcher, build_candidate_text
+from embed import HybridMatcher, build_candidate_text
 from validate import build_quiz, grade_quiz
 
 st.set_page_config(page_title="TalentAI", page_icon="🧠", layout="wide")
@@ -15,7 +15,7 @@ st.set_page_config(page_title="TalentAI", page_icon="🧠", layout="wide")
 # Session & constants
 # -----------------------------
 DEFAULTS = {
-    "auth_ok": False,
+    "auth_ok": True,
     "user_email": "",
     "role": "",              # "recruiter" or "candidate"
     "full_name": "",
@@ -39,8 +39,8 @@ def _load_all_data():
     return users, recruiters, jobs, cands, apps
 
 @st.cache_resource(show_spinner=False)
-def _matcher(jobs_df: pd.DataFrame):
-    return TFIDFMatcher(jobs_df)
+def _matcher(jobs_df: pd.DataFrame, skills_map: dict):
+    return HybridMatcher(jobs_df, skills_map=skills_map)
 
 # -----------------------------
 # UI helpers
@@ -109,11 +109,9 @@ def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame):
 
     # Build candidate skills map from candidates.csv (since skills.csv was removed)
     skills_map = candidate_skills_map(cands)
-
-    matcher = _matcher(jobs)
-
-    # Global top matches (all candidates)
+    matcher = _matcher(jobs, skills_map)
     global_rank = matcher.score_job_vs_candidates(job_row, cands, skills_map).head(20)
+
     st.subheader("Top Matches (All Candidates)")
     st.dataframe(global_rank, use_container_width=True, height=360)
 
@@ -154,10 +152,13 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
         me_row = me.iloc[0]
 
     skills_text = str(me_row.get("skills",""))
+    cand_skills = set(s.strip() for s in skills_text.split(",") if s.strip())
     cand_text = build_candidate_text(me_row, skills_text)
 
-    matcher = _matcher(jobs)
-    rank = matcher.score_candidate_vs_jobs(cand_text, me_row).head(20)
+    skills_map = candidate_skills_map(cands)
+    matcher = _matcher(jobs, skills_map)
+
+    rank = matcher.score_candidate_vs_jobs(cand_text, me_row, cand_skills).head(20)
 
     st.subheader("Top Matching Jobs")
     st.dataframe(rank[["job_id","job_title","topic","score_match"]], use_container_width=True, height=360)
@@ -215,6 +216,13 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
 def home_page():
     header_nav()
     _users, _recruiters, jobs, cands, _apps = _load_all_data()
+
+    cands["skills"] = cands["skills"].apply(lambda s: [x.strip() for x in str(s).split(",") if x.strip()])
+    jobs["skills"] = jobs["Skills/Tech-stack required"].apply(lambda s: [x.strip() for x in str(s).split(",") if x.strip()])
+
+    skills_map = candidate_skills_map(cands)
+    matcher = _matcher(jobs, skills_map)
+
 
     if not st.session_state.get("auth_ok"):
         login_view()

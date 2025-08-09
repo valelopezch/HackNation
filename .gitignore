@@ -1,2 +1,5 @@
 talentAI-env/
 __pycache__/
+*.index
+*.npy
+*.joblib
