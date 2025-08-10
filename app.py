@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os 
+import re
 
 from data_utils import (
     load_users, load_recruiters, load_jobs, load_candidates, load_applications,
@@ -98,29 +99,44 @@ def header_nav():
 #         else:
 #             st.error("Invalid credentials")
 
+def is_valid_email(email: str) -> bool:
+    """Basic email check: must contain @ and a dot after it."""
+    return "@" in email and "." in email.split("@")[-1]
+
+def is_valid_password(password: str) -> bool:
+    """Check if password > 8 chars and contains at least one special char."""
+    return len(password) > 8 and bool(re.search(r"[^A-Za-z0-9]", password))
+
+
 def login_view():
     st.title("Welcome to TalentAI")
     tabs = st.tabs(["Sign in", "Sign up"])
 
-    # --- SIGN IN (as you had it, can stay a form) ---
+    # --- SIGN IN ---
     with tabs[0]:
         with st.form("login"):
             u = st.text_input("Email")
             p = st.text_input("Password", type="password")
             submitted = st.form_submit_button("Sign in")
         if submitted:
-            auth = authenticate_user(u, p)
-            if auth:
-                st.session_state.auth_ok = True
-                st.session_state.user_email = auth["email"]
-                st.session_state.role = auth["role"]
-                st.session_state.full_name = auth["full_name"]
-                st.success(f"Welcome, {st.session_state.full_name or st.session_state.user_email}!")
-                st.rerun()
+            # Basic validation
+            if not is_valid_email(u):
+                st.error("Please enter a valid email address.")
+            elif not is_valid_password(p):
+                st.error("Password must be longer than 8 characters and include at least one special character.")
             else:
-                st.error("Invalid credentials")
+                auth = authenticate_user(u, p)
+                if auth:
+                    st.session_state.auth_ok = True
+                    st.session_state.user_email = auth["email"]
+                    st.session_state.role = auth["role"]
+                    st.session_state.full_name = auth["full_name"]
+                    st.success(f"Welcome, {st.session_state.full_name or st.session_state.user_email}!")
+                    st.rerun()
+                else:
+                    st.error("Invalid credentials")
 
-    # --- SIGN UP (no form for dynamic bits) ---
+    # --- SIGN UP ---
     with tabs[1]:
         st.caption("Create a new account")
 
@@ -141,11 +157,9 @@ def login_view():
         company_name = company_site = company_bio = ""
         if role == "candidate":
             st.markdown("### Complete your profile")
-
             uploaded = st.file_uploader("Upload your CV (PDF only)", type=["pdf"], key="cv_upload")
             parsed = {}
             if uploaded is not None:
-                # parse immediately on upload
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                     tmp.write(uploaded.read()); tmp_path = tmp.name
                 try:
@@ -176,20 +190,26 @@ def login_view():
             with r2:
                 company_bio = st.text_area("Company bio", height=90)
 
-        # Final submit (can be a tiny form or just a button)
+        # Final submit
         st.markdown("---")
         with st.form("signup_submit"):
             agree = st.checkbox("I confirm the information is correct", value=True)
             submit_up = st.form_submit_button("Create account")
 
         if submit_up:
-            # basic checks
             if not email or not full_name or not password or not password2 or not role:
                 st.error("Please fill all required fields (*), including Role.")
+                return
+            if not is_valid_email(email):
+                st.error("Please enter a valid email address.")
+                return
+            if not is_valid_password(password):
+                st.error("Password must be longer than 8 characters and include at least one special character.")
                 return
             if password != password2:
                 st.error("Passwords do not match.")
                 return
+
             try:
                 created_user = create_user(
                     email=email, password=password, role=role,
