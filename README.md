@@ -6,6 +6,13 @@ Recruiters can post jobs and instantly see top matches. Candidates can browse be
 
 ---
 
+# 👥 Collaborators
+
+- [Ana Valentina Lopez Chacon](https://github.com/valelopezch)
+- [Andres Felipe Florian Quitian](https://github.com/felipeflorian)
+- [Estefania Laverde Becerra](https://github.com/EstefaniaLaverde)
+- [Isabella Martinez Martinez](https://github.com/belisadi)
+
 ## ✨ Features
 
 - **User roles**:  
