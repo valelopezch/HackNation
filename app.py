@@ -5,11 +5,13 @@ import os
 from data_utils import (
     load_users, load_recruiters, load_jobs, load_candidates, load_applications,
     authenticate_user, save_application, apps_for_job, apps_for_candidate,
-    candidate_skills_map, global_skill_pool_from_candidates
+    candidate_skills_map, global_skill_pool_from_candidates,
+    get_signatures
 )
-from embed import HybridMatcher, build_candidate_text
+from embed import DualMatcher, build_candidate_text
 from validate import build_quiz, grade_quiz, load_mcq_dataset, default_answers_skeleton
 
+import hashlib, json
 
 st.set_page_config(page_title="TalentAI", page_icon="🧠", layout="wide")
 
@@ -31,8 +33,16 @@ for k, v in DEFAULTS.items():
 # Cached data & resources
 # -----------------------------
 
+def df_sha256(df: pd.DataFrame) -> str:
+    b = df.to_csv(index=False).encode("utf-8")
+    return hashlib.sha256(b).hexdigest()
+
+def cfg_sha256(model_name="paraphrase-multilingual-MiniLM-L12-v2", tfidf_min_df=1, tfidf_ngram=(1,2)) -> str:
+    cfg = {"model_name": model_name, "tfidf_min_df": tfidf_min_df, "tfidf_ngram": tfidf_ngram}
+    return hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()
+
 @st.cache_data(show_spinner=False)
-def _load_all_data():
+def _load_all_data(users_sig, recs_sig, jobs_sig, cands_sig, apps_sig):
     users = load_users()
     recruiters = load_recruiters()
     jobs = load_jobs()
@@ -40,9 +50,9 @@ def _load_all_data():
     apps = load_applications()
     return users, recruiters, jobs, cands, apps
 
-@st.cache_resource(hash_funcs={pd.DataFrame: lambda _: None})
-def _matcher(jobs_df, skills_map):
-    return HybridMatcher(jobs_df, skills_map=skills_map)
+@st.cache_resource(show_spinner=False)
+def _matcher(jobs_df, cands_df, skills_map, jobs_sig: str, cands_sig: str, cfg_sig: str):
+    return DualMatcher(jobs_df, cands_df, skills_map=skills_map, model_name="paraphrase-multilingual-MiniLM-L12-v2", store_root="./vector_store")
 
 # -----------------------------
 # UI helpers
@@ -90,7 +100,7 @@ def login_view():
 # Recruiter views
 # -----------------------------
 
-def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame):
+def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame, matcher):
     st.header("Recruiter Dashboard")
     my_jobs = jobs[jobs["posted_by"].str.lower() == st.session_state.user_email.lower()] \
               if "posted_by" in jobs.columns else jobs
@@ -111,7 +121,9 @@ def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame):
 
     # Build candidate skills map from candidates.csv (since skills.csv was removed)
     skills_map = candidate_skills_map(cands)
-    matcher = _matcher(jobs, skills_map)
+    # jobs_sig = df_sha256(jobs)
+    # cfg_sig  = cfg_sha256()
+    # matcher = _matcher(jobs, skills_map, jobs_sig, cfg_sig)
     global_rank = matcher.score_job_vs_candidates(job_row, cands, skills_map).head(20)
 
     st.subheader("Top Matches (All Candidates)")
@@ -155,7 +167,7 @@ def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame):
 # Candidate views
 # -----------------------------
 
-def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
+def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame, matcher):
     st.header("Candidate")
 
     # ---------- Load (or reuse) MCQ dataset ----------
@@ -204,8 +216,10 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
     cand_text = build_candidate_text(me_row, skills_text)
 
     # ---------- Matching ----------
-    skills_map = candidate_skills_map(cands)
-    matcher = _matcher(jobs, skills_map)
+    # skills_map = candidate_skills_map(cands)
+    # jobs_sig = df_sha256(jobs)
+    # cfg_sig  = cfg_sha256()
+    # matcher = _matcher(jobs, skills_map, jobs_sig, cfg_sig)
     rank = matcher.score_candidate_vs_jobs(cand_text, me_row, cand_skills).head(20)
 
     st.subheader("Top Matching Jobs")
@@ -296,24 +310,28 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
 
 def home_page():
     header_nav()
-    _users, _recruiters, jobs, cands, _apps = _load_all_data()
+    sigs = get_signatures()
+    _users, _recruiters, jobs, cands, _apps = _load_all_data(
+        sigs["users"], sigs["recruiters"], sigs["jobs"], sigs["cands"], sigs["apps"]
+    )
 
+    # normaliza skills a secuencia (tu código actual)
     _split = lambda s: tuple(x.strip() for x in str(s).split(",") if x.strip())
     cands["skills"] = cands["skills"].apply(_split)
     jobs["skills"]  = jobs["Skills/Tech-stack required"].apply(_split)
 
+    # matcher con firmas (clave de cache)
     skills_map = candidate_skills_map(cands)
-    matcher = _matcher(jobs, skills_map)
-
+    matcher = _matcher(jobs, cands, skills_map, sigs["jobs"], sigs["cands"], cfg_sha256())
 
     if not st.session_state.get("auth_ok"):
         login_view()
         return
 
     if st.session_state.role == "recruiter":
-        recruiter_home(jobs, cands)
+        recruiter_home(jobs, cands, matcher)
     elif st.session_state.role == "candidate":
-        candidate_home(jobs, cands)
+        candidate_home(jobs, cands, matcher)
     else:
         st.warning("Unknown role. Please logout and sign in again.")
 

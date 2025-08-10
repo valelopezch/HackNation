@@ -1,0 +1,12 @@
+{
+  "sha256": "17815fcf7855af57bf5931a9cdfc396c8a53c50daa6f92b39d10f8b2deb6b363",
+  "rows": 962,
+  "model_name": "paraphrase-multilingual-MiniLM-L12-v2",
+  "tfidf_min_df": 1,
+  "tfidf_ngram": [
+    1,
+    2
+  ],
+  "faiss_ntotal": 962,
+  "updated_at": 1754788141
+}

@@ -6,19 +6,36 @@ from datetime import datetime, timezone, timedelta
 from faker import Faker
 import re
 import random
+import hashlib
 
 fake = Faker()
 
 DATA_DIR = "data"
-USERS_FILE = os.path.join(DATA_DIR, "users_template.csv")
-RECRUITERS_FILE = os.path.join(DATA_DIR, "recruiters_template.csv")
-JOBS_FILE = os.path.join(DATA_DIR, "jobs_template.csv")
-CANDIDATES_FILE = os.path.join(DATA_DIR, "candidates_template.csv")
-APPLICATIONS_FILE = os.path.join(DATA_DIR, "applications_template.csv")
+USERS_FILE = os.path.join(DATA_DIR, "users.csv")
+RECRUITERS_FILE = os.path.join(DATA_DIR, "recruiters.csv")
+JOBS_FILE = os.path.join(DATA_DIR, "jobs.csv")
+CANDIDATES_FILE = os.path.join(DATA_DIR, "candidates.csv")
+APPLICATIONS_FILE = os.path.join(DATA_DIR, "applications.csv")
 
 # -----------------------------
 # Loading & integrity utilities
 # -----------------------------
+
+def file_sha256(path: str, chunk: int = 1<<20) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for b in iter(lambda: f.read(chunk), b""):
+            h.update(b)
+    return h.hexdigest()
+
+def get_signatures() -> dict:
+    return {
+        "users": file_sha256(USERS_FILE),
+        "recruiters": file_sha256(RECRUITERS_FILE),
+        "jobs": file_sha256(JOBS_FILE),
+        "cands": file_sha256(CANDIDATES_FILE),
+        "apps": file_sha256(APPLICATIONS_FILE),
+    }
 
 def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
