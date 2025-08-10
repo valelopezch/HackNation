@@ -10,3 +10,5 @@ rapidfuzz>=3.9
 pydantic>=2.8
 tqdm>=4.66
 python-slugify>=8.0
+faker>=37.5.3
+PyPDF2>=3.0.1
