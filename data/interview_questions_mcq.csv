@@ -1,0 +1,81 @@
+topic,question,options,correct_answer
+Artificial Intelligence,What is the difference between narrow AI and general AI?,"['Narrow AI focuses on specific tasks, general AI can perform any human task', 'Narrow AI is faster, general AI is slower', 'Narrow AI uses neural networks, general AI does not', 'Narrow AI is outdated, general AI is modern']","Narrow AI focuses on specific tasks, general AI can perform any human task"
+Artificial Intelligence,What is the Turing Test used for?,"['To measure the speed of AI models', 'To determine if a machine exhibits human-like intelligence', 'To test the accuracy of AI predictions', 'To evaluate AI hardware performance']",To determine if a machine exhibits human-like intelligence
+Artificial Intelligence,Which of the following is an example of reinforcement learning?,"['Teaching a robot to walk by rewarding progress', 'Sorting emails into spam and inbox', 'Clustering customers by purchase behavior', 'Predicting tomorrow’s weather']",Teaching a robot to walk by rewarding progress
+Artificial Intelligence,What is AI bias?,"['Errors caused by biased training data', 'AI systems running too slowly', 'Incorrect hyperparameter tuning', 'Lack of neural network layers']",Errors caused by biased training data
+Artificial Intelligence,Which is a common use of AI in healthcare?,"['Diagnosing diseases from medical images', 'Encrypting patient data', 'Scheduling hospital staff shifts', 'Inventory management for drugs']",Diagnosing diseases from medical images
+Artificial Intelligence,What is a knowledge graph?,"['A database that stores facts and relationships', 'A type of decision tree', 'A neural network visualizer', 'A clustering algorithm']",A database that stores facts and relationships
+Artificial Intelligence,What does explainable AI focus on?,"['Improving AI inference speed', 'Making AI decisions interpretable to humans', 'Compressing AI models', 'Encrypting AI models for security']",Making AI decisions interpretable to humans
+Artificial Intelligence,What is transfer learning in AI?,"['Using knowledge from one task to improve another', 'Training from scratch with more data', 'Compressing large AI models', 'Combining multiple AI models']",Using knowledge from one task to improve another
+Artificial Intelligence,What is an expert system?,"['An AI system using rules and logic to mimic human expertise', 'A cloud-based AI service', 'An AI for optimizing databases', 'A voice assistant like Alexa']",An AI system using rules and logic to mimic human expertise
+Artificial Intelligence,What is an example of AI in IoT devices?,"['Smart thermostats adjusting temperature automatically', 'Manually setting a thermostat', 'A standard light bulb', 'A wall clock']",Smart thermostats adjusting temperature automatically
+Big Data,Which of the following best defines Big Data?,"['Data sets too large for traditional processing tools', 'Small, manageable datasets', 'Only structured databases', 'Only unstructured text data']",Data sets too large for traditional processing tools
+Big Data,Which of these is a common Big Data framework?,"['Apache Hadoop', 'SQLite', 'Microsoft Access', 'Excel']",Apache Hadoop
+Big Data,What does the 'V' in Big Data characteristics stand for?,"['Volume, Velocity, Variety', 'Value, Visibility, Validity', 'Vision, Verification, Visualization', 'Version, Variation, Virtualization']","Volume, Velocity, Variety"
+Big Data,Which is an example of unstructured data?,"['Customer emails', 'Sales database records', 'Bank transaction logs', 'Excel spreadsheets']",Customer emails
+Big Data,Which tool is commonly used for distributed data processing?,"['Apache Spark', 'MySQL', 'Oracle DB', 'PostgreSQL']",Apache Spark
+Big Data,What is data lake in Big Data?,"['A storage for raw, unprocessed data', 'A small relational database', 'A water-themed database', 'A tool for data cleaning']","A storage for raw, unprocessed data"
+Big Data,Which of these is a NoSQL database?,"['MongoDB', 'PostgreSQL', 'MySQL', 'Oracle']",MongoDB
+Big Data,What is real-time analytics?,"['Processing and analyzing data as it arrives', 'Analyzing data weekly', 'Only processing old datasets', 'Using batch processing only']",Processing and analyzing data as it arrives
+Big Data,Which cloud platform offers Big Data services?,"['AWS', 'Photoshop', 'Notepad++', 'Slack']",AWS
+Big Data,What is the main purpose of MapReduce?,"['Processing large datasets in parallel', 'Designing web pages', 'Running simulations', 'Creating images']",Processing large datasets in parallel
+Computer Vision,Which algorithm is commonly used for object detection?,"['YOLO', 'K-means', 'Apriori', 'Naive Bayes']",YOLO
+Computer Vision,What does CNN stand for?,"['Convolutional Neural Network', 'Central Neural Node', 'Coded Neural Network', 'Complex Node Network']",Convolutional Neural Network
+Computer Vision,Which is an application of image segmentation?,"['Separating different objects in a medical scan', 'Predicting weather', 'Classifying text sentiment', 'Sorting transactions']",Separating different objects in a medical scan
+Computer Vision,Which technique helps make CNNs invariant to small translations?,"['Pooling layers', 'Dropout', 'Batch Normalization', 'Data Augmentation']",Pooling layers
+Computer Vision,What is the main difference between object detection and image classification?,"['Object detection locates and labels objects, classification only labels', 'Classification is always faster', 'Detection requires no training', 'They are the same']","Object detection locates and labels objects, classification only labels"
+Computer Vision,What dataset is commonly used for image classification benchmarking?,"['ImageNet', 'MNIST', 'CIFAR-10', 'All of the above']",All of the above
+Computer Vision,Which method can be used to reduce overfitting in CNNs?,"['Dropout', 'Gradient Clipping', 'Learning Rate Decay', 'Batch Size Increase']",Dropout
+Computer Vision,Which of these is a feature descriptor in CV?,"['SIFT', 'Adam', 'Softmax', 'Relu']",SIFT
+Computer Vision,Which type of network is often used for semantic segmentation?,"['U-Net', 'RNN', 'DBSCAN', 'GAN']",U-Net
+Computer Vision,What does non-maximum suppression do in object detection?,"['Removes overlapping bounding boxes', 'Removes low-quality images', 'Suppresses gradients', 'Reduces network layers']",Removes overlapping bounding boxes
+Cloud Computing,What is the main characteristic of cloud computing?,"['On-demand access to computing resources over the internet', 'Free access to all software', 'Offline data storage only', 'No need for internet connection']",On-demand access to computing resources over the internet
+Cloud Computing,Which of the following is a cloud deployment model?,"['Public Cloud', 'Hybrid Cloud', 'Private Cloud', 'All of the above']",All of the above
+Cloud Computing,What does IaaS stand for?,"['Infrastructure as a Service', 'Internet as a Service', 'Integration as a Service', 'Interface as a Service']",Infrastructure as a Service
+Cloud Computing,Which of these is an example of SaaS?,"['Google Workspace', 'Amazon EC2', 'Microsoft Azure VM', 'Docker']",Google Workspace
+Cloud Computing,Which cloud provider offers the EC2 service?,"['Amazon Web Services', 'Microsoft Azure', 'Google Cloud', 'Oracle Cloud']",Amazon Web Services
+Cloud Computing,What is serverless computing?,"['Running code without managing servers', 'Computing without electricity', 'Having no backend at all', 'Only using local machines']",Running code without managing servers
+Cloud Computing,Which of these is a benefit of cloud computing?,"['Scalability', 'Fixed resource allocation', 'Manual hardware upgrades', 'Higher upfront cost']",Scalability
+Cloud Computing,What is cloud elasticity?,"['Automatic scaling of resources up or down', 'Cloud storing only elastic files', 'Flexible internet cables', 'Backup storage system']",Automatic scaling of resources up or down
+Cloud Computing,Which protocol is commonly used for secure data transfer to the cloud?,"['HTTPS', 'FTP', 'Telnet', 'SMTP']",HTTPS
+Cloud Computing,What is a cloud region?,"['A geographical location where cloud data centers are located', 'A local folder in the cloud', 'A security certificate', 'A user account type']",A geographical location where cloud data centers are located
+Data Science,What is the main goal of data science?,"['Extract knowledge and insights from data', 'Design physical machines', 'Create 3D models', 'Manage office documents']",Extract knowledge and insights from data
+Data Science,Which of these is an example of a supervised learning algorithm?,"['Linear Regression', 'K-Means Clustering', 'PCA', 'Apriori']",Linear Regression
+Data Science,What is the first step in a data science workflow?,"['Data collection', 'Model training', 'Feature scaling', 'Hyperparameter tuning']",Data collection
+Data Science,Which Python library is widely used for data manipulation?,"['Pandas', 'NumPy', 'Matplotlib', 'TensorFlow']",Pandas
+Data Science,What is feature engineering?,"['Creating new features from existing data to improve model performance', 'Building a software feature', 'Testing system security', 'Debugging a program']",Creating new features from existing data to improve model performance
+Data Science,What is the purpose of cross-validation?,"['Evaluate a model’s ability to generalize', 'Speed up training', 'Encrypt data', 'Compress files']",Evaluate a model’s ability to generalize
+Data Science,Which of these is an example of an unsupervised learning task?,"['Clustering', 'Regression', 'Classification', 'Time series forecasting']",Clustering
+Data Science,What does EDA stand for?,"['Exploratory Data Analysis', 'Extended Data Architecture', 'External Data Access', 'Enterprise Data Automation']",Exploratory Data Analysis
+Data Science,Which metric is commonly used to evaluate classification models?,"['Accuracy', 'Mean Squared Error', 'RMSE', 'R-squared']",Accuracy
+Data Science,What is the main purpose of data visualization?,"['Communicate insights from data clearly', 'Store data', 'Remove outliers', 'Normalize datasets']",Communicate insights from data clearly
+Machine Learning,What is overfitting in machine learning?,"['Model performs well on training data but poorly on unseen data', 'Model performs well on all datasets', 'Model underestimates outputs', 'Model has no parameters']",Model performs well on training data but poorly on unseen data
+Machine Learning,Which algorithm is used for classification tasks?,"['Logistic Regression', 'K-Means', 'PCA', 'DBSCAN']",Logistic Regression
+Machine Learning,What is the purpose of a learning rate in optimization?,"['Control step size during gradient descent', 'Determine number of layers', 'Set batch size', 'Reduce overfitting']",Control step size during gradient descent
+Machine Learning,Which of these is an ensemble learning method?,"['Random Forest', 'Linear Regression', 'KNN', 'Naive Bayes']",Random Forest
+Machine Learning,What is the difference between supervised and unsupervised learning?,"['Supervised uses labeled data, unsupervised uses unlabeled data', 'Supervised is faster', 'Unsupervised always uses neural networks', 'They are the same']","Supervised uses labeled data, unsupervised uses unlabeled data"
+Machine Learning,Which activation function is commonly used in hidden layers?,"['ReLU', 'Softmax', 'Sigmoid', 'Tanh']",ReLU
+Machine Learning,What is a confusion matrix used for?,"['Evaluate classification performance', 'Store predictions', 'Visualize training loss', 'Debug code']",Evaluate classification performance
+Machine Learning,Which of the following is a hyperparameter?,"['Learning rate', 'Model predictions', 'Accuracy score', 'Loss value']",Learning rate
+Machine Learning,What does regularization help with?,"['Reducing overfitting', 'Speeding up training', 'Improving GPU performance', 'Removing null values']",Reducing overfitting
+Machine Learning,Which library is popular for deep learning in Python?,"['TensorFlow', 'Pandas', 'Matplotlib', 'Seaborn']",TensorFlow
+MLOps,What is the main goal of MLOps?,"['Streamline and automate the ML lifecycle', 'Create more ML models manually', 'Replace developers', 'Build UI applications']",Streamline and automate the ML lifecycle
+MLOps,Which tool is commonly used for experiment tracking?,"['MLflow', 'Docker', 'GitHub', 'Postman']",MLflow
+MLOps,What does CI/CD stand for in MLOps?,"['Continuous Integration / Continuous Deployment', 'Cloud Integration / Code Delivery', 'Continuous Improvement / Continuous Design', 'Code Integration / Continuous Debugging']",Continuous Integration / Continuous Deployment
+MLOps,What is model drift?,"['Change in model performance due to data distribution shifts', 'When a model moves to another cloud provider', 'A slow training process', 'Using outdated libraries']",Change in model performance due to data distribution shifts
+MLOps,Which containerization tool is widely used in MLOps?,"['Docker', 'Kubernetes', 'Podman', 'VirtualBox']",Docker
+MLOps,What is the purpose of a feature store?,"['Centralized repository for storing ML features', 'Database for model predictions', 'Version control for code', 'Backup system']",Centralized repository for storing ML features
+MLOps,Which orchestration tool is often used in MLOps pipelines?,"['Apache Airflow', 'NumPy', 'Jupyter', 'Flask']",Apache Airflow
+MLOps,What is the role of monitoring in MLOps?,"['Track model performance and detect anomalies', 'Optimize hyperparameters', 'Store datasets', 'Generate new features']",Track model performance and detect anomalies
+MLOps,Which cloud service offers SageMaker for MLOps?,"['AWS', 'Azure', 'GCP', 'IBM Cloud']",AWS
+MLOps,What is the main benefit of model versioning?,"['Reproduce and compare models over time', 'Improve GPU speed', 'Reduce dataset size', 'Encrypt models']",Reproduce and compare models over time
+Natural Language Processing,What is the main goal of NLP?,"['Enable machines to understand and process human language', 'Teach humans programming languages', 'Translate code into binary', 'Build operating systems']",Enable machines to understand and process human language
+Natural Language Processing,Which of these is a common NLP task?,"['Sentiment Analysis', 'Sorting numbers', 'Rendering 3D graphics', 'Compiling code']",Sentiment Analysis
+Natural Language Processing,What does tokenization do?,"['Splits text into smaller units like words or subwords', 'Encrypts text', 'Combines sentences', 'Translates text']",Splits text into smaller units like words or subwords
+Natural Language Processing,Which model architecture is popular in NLP?,"['Transformer', 'Convolutional Neural Network', 'Decision Tree', 'Random Forest']",Transformer
+Natural Language Processing,What does BERT stand for?,"['Bidirectional Encoder Representations from Transformers', 'Binary Encoding Recurrent Transformer', 'Basic Encoder Representation Technique', 'Bidirectional Entity Recognition Tool']",Bidirectional Encoder Representations from Transformers
+Natural Language Processing,Which library is widely used for NLP in Python?,"['Hugging Face Transformers', 'OpenCV', 'Matplotlib', 'scikit-learn']",Hugging Face Transformers
+Natural Language Processing,What is lemmatization?,"['Reducing words to their base or dictionary form', 'Removing punctuation', 'Counting word frequencies', 'Sorting sentences']",Reducing words to their base or dictionary form
+Natural Language Processing,What is named entity recognition (NER)?,"['Identifying and classifying entities like names, dates, locations in text', 'Recognizing code functions', 'Detecting syntax errors', 'Analyzing images']","Identifying and classifying entities like names, dates, locations in text"
+Natural Language Processing,Which of the following is a language model?,"['GPT-3', 'ResNet', 'YOLO', 'XGBoost']",GPT-3
+Natural Language Processing,What is stop word removal?,"[""Eliminating common words like 'and', 'the' from text"", 'Deleting rare words', 'Removing typos', 'Filtering out foreign words']","Eliminating common words like 'and', 'the' from text"
