@@ -70,14 +70,13 @@ def header_nav():
                 logout()
     st.markdown("---")
 
+
 def login_view():
     st.title("Welcome to TalentAI")
-
     tabs = st.tabs(["Sign in", "Sign up"])
 
-    # ---------- SIGN IN ----------
+    # --- SIGN IN (as you had it, can stay a form) ---
     with tabs[0]:
-        st.caption("Use any account present in **data/users.csv**.")
         with st.form("login"):
             u = st.text_input("Email")
             p = st.text_input("Password", type="password")
@@ -94,136 +93,113 @@ def login_view():
             else:
                 st.error("Invalid credentials")
 
-    # ---------- SIGN UP ----------
+    # --- SIGN UP (no form for dynamic bits) ---
     with tabs[1]:
         st.caption("Create a new account")
 
-        with st.form("signup", clear_on_submit=False):
-            # Basic (always visible)
-            st.markdown("### Initial details")
-            colA, colB = st.columns(2)
-            with colA:
-                email = st.text_input("Email *")
-                full_name = st.text_input("Full name *")
-                password = st.text_input("Password *", type="password")
-            with colB:
-                password2 = st.text_input("Confirm password *", type="password")
-                location = st.text_input("Location")
-                role = st.selectbox("Role *", ["", "candidate", "recruiter"], index=0)
+        st.markdown("### Initial details")
+        colA, colB = st.columns(2)
+        with colA:
+            email = st.text_input("Email *", key="su_email")
+            full_name = st.text_input("Full name *", key="su_full_name")
+            password = st.text_input("Password *", type="password", key="su_password")
+        with colB:
+            password2 = st.text_input("Confirm password *", type="password", key="su_password2")
+            location = st.text_input("Location", key="su_location")
+            role = st.selectbox("Role *", ["", "candidate", "recruiter"], index=0, key="su_role")
 
-            # Initialize role-specific defaults to avoid NameError
-            # Candidate-only fields
-            cand_title = about = skills = preferred_type = seniority = ""
-            yoe = "0"
-            # Recruiter-only fields
-            company_name = company_site = company_bio = ""
-            posted_jobs = 0
+        # Role-specific UI shows immediately because it's NOT in a form
+        cand_title = about = skills = preferred_type = seniority = ""
+        yoe = "0"
+        company_name = company_site = company_bio = ""
+        if role == "candidate":
+            st.markdown("### Complete your profile")
 
-            continue_button = st.form_submit_button("Continue")
-            if continue_button:
-                if not email or not full_name or not password or not password2 or not role:
-                    st.error("Please fill all required fields (*), including Role.")
-                elif password != password2:
-                    st.error("Passwords do not match.")
-                else:
-                    # Role-specific sections appear ONLY after a role is chosen
-                    if role == "candidate":
-                        st.markdown("### Complete your profile")
+            uploaded = st.file_uploader("Upload your CV (PDF only)", type=["pdf"], key="cv_upload")
+            parsed = {}
+            if uploaded is not None:
+                # parse immediately on upload
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                    tmp.write(uploaded.read()); tmp_path = tmp.name
+                try:
+                    text = ""
+                    reader = PdfReader(tmp_path)
+                    for p in reader.pages:
+                        text += (p.extract_text() or "") + "\n"
+                finally:
+                    os.remove(tmp_path)
+                parsed = extract_cv_fields(text, full_name, email) or {}
 
-                        uploaded_file = st.file_uploader("Upload your CV (PDF only)", type=["pdf"])
-                        if uploaded_file is not None:
-                            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                                tmp_file.write(uploaded_file.read())
-                                tmp_path = tmp_file.name
+            c1, c2 = st.columns(2)
+            with c1:
+                cand_title   = st.text_input("Candidate title", value=parsed.get("candidate_title",""))
+                yoe          = st.text_input("Years of experience (YOE)", value=str(parsed.get("yoe","0")))
+                seniority    = st.text_input("Seniority", value=parsed.get("seniority",""))
+            with c2:
+                preferred_type = st.text_input("Preferred employment type", value=parsed.get("preferred_employment_type",""))
+                skills         = st.text_input("Skills (comma-separated)")
+            about = st.text_area("About", value=parsed.get("about",""), height=90)
 
-                            # Extract text from PDF
-                            reader = PdfReader(tmp_path)
-                            cv_text = ""
-                            for page in reader.pages:
-                                cv_text += page.extract_text() + "\n"
+        elif role == "recruiter":
+            st.markdown("### Recruiter details")
+            r1, r2 = st.columns(2)
+            with r1:
+                company_name = st.text_input("Company name")
+                company_site = st.text_input("Company site (URL)")
+            with r2:
+                company_bio = st.text_area("Company bio", height=90)
 
-                            os.remove(tmp_path)
+        # Final submit (can be a tiny form or just a button)
+        st.markdown("---")
+        with st.form("signup_submit"):
+            agree = st.checkbox("I confirm the information is correct", value=True)
+            submit_up = st.form_submit_button("Create account")
 
-                            st.text_area("Extracted CV Text (read-only)", cv_text, height=200)
-
-                            # Here you can call your CV parsing function
-                            parsed_data = extract_cv_fields(cv_text,st.session_state.full_name, st.session_state.user_email)
-
-                            c1, c2 = st.columns(2)
-                            with c1:
-                                cand_title = st.text_input("Candidate title", value=parsed_data['candidate_title'])
-                                yoe = st.text_input("Years of experience (YOE)", value=parsed_data['yoe'])
-                                seniority = st.text_input("Seniority", value=parsed_data['seniority'])
-                            with c2:
-                                preferred_type = st.text_input("Preferred employment type", value=parsed_data['preferred_employment_type'])
-                                skills = st.text_input("Skills (comma-separated)")
-                            about = st.text_area("About", value=parsed_data['about'], height=90)
-
-
-                    elif role == "recruiter":
-                        st.markdown("### Recruiter details")
-                        r1, r2 = st.columns(2)
-                        with r1:
-                            company_name = st.text_input("Company name")
-                            company_site = st.text_input("Company site (URL)")
-                        with r2:
-                            company_bio = st.text_area("Company bio", height=90)
-                        posted_jobs = 0  # starting point
-
-            # agree = st.checkbox("I confirm the information is correct", value=True)
-                submit_up = st.form_submit_button("Create account")
-
-        # Handle submit
         if submit_up:
+            # basic checks
             if not email or not full_name or not password or not password2 or not role:
                 st.error("Please fill all required fields (*), including Role.")
-            elif password != password2:
+                return
+            if password != password2:
                 st.error("Passwords do not match.")
-            else:
-                try:
-                    # Create user
-                    created_user = create_user(
-                        email=email, password=password, role=role,
-                        full_name=full_name, location=location
+                return
+            try:
+                created_user = create_user(
+                    email=email, password=password, role=role,
+                    full_name=full_name, location=location
+                )
+                if role == "candidate":
+                    upsert_candidate_profile(
+                        candidate_email=email,
+                        full_name=full_name,
+                        candidate_title=cand_title,
+                        about=about,
+                        location=location,
+                        preferred_employment_type=preferred_type,
+                        yoe=yoe,
+                        seniority=seniority,
+                        skills=skills
+                    )
+                else:
+                    upsert_recruiter_profile(
+                        email=email,
+                        company_name=company_name,
+                        company_site=company_site,
+                        bio=company_bio,
+                        posted_jobs=0
                     )
 
-                    # Create role profile
-                    if role == "candidate":
-                        upsert_candidate_profile(
-                            candidate_email=email,
-                            full_name=full_name,
-                            candidate_title=cand_title,
-                            about=about,
-                            location=location,
-                            preferred_employment_type=preferred_type,
-                            yoe=yoe,
-                            seniority=seniority,
-                            skills=skills
-                        )
-                    else:  # recruiter
-                        upsert_recruiter_profile(
-                            email=email,
-                            company_name=company_name,
-                            company_site=company_site,
-                            bio=company_bio,
-                            posted_jobs=posted_jobs
-                        )
-
-                    # Auto-login and refresh caches so new records appear immediately
-                    st.success("Account created! Logging you in…")
-                    st.session_state.auth_ok = True
-                    st.session_state.user_email = created_user["email"]
-                    st.session_state.role = created_user["role"]
-                    st.session_state.full_name = created_user["full_name"]
-
-                    # st.cache_data.clear()
-                    # st.cache_resource.clear()
-                    # st.experimental_rerun()
-
-                except ValueError as ve:
-                    st.error(str(ve))
-                except Exception as e:
-                    st.exception(e)
+                st.success("Account created! Logging you in…")
+                st.session_state.auth_ok   = True
+                st.session_state.user_email = created_user["email"]
+                st.session_state.role       = created_user["role"]
+                st.session_state.full_name  = created_user["full_name"]
+                st.cache_data.clear(); st.cache_resource.clear()
+                st.rerun()
+            except ValueError as ve:
+                st.error(str(ve))
+            except Exception as e:
+                st.exception(e)
 
 
 # -----------------------------
