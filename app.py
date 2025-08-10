@@ -156,9 +156,33 @@ def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame):
 def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
     st.header("Candidate")
 
+    # ---------- Load (or reuse) MCQ dataset ----------
+    if "mcq_df" not in st.session_state:
+        # Look in data/ and project root
+        DATA_DIR = os.path.join(os.getcwd(), "data") 
+        mcq_paths = [
+            os.path.join(DATA_DIR, "interview_questions_mcq.csv"),
+            "interview_questions_mcq.csv",
+        ]
+        mcq_df = pd.DataFrame(columns=["topic", "question", "options", "correct_answer", "options_parsed"])
+        for p in mcq_paths:
+            try:
+                if os.path.exists(p):
+                    mcq_df = load_mcq_dataset(p)
+                    st.session_state["mcq_path"] = p
+                    break
+            except Exception as e:
+                pass
+        st.session_state["mcq_df"] = mcq_df
+
+    mcq_df = st.session_state["mcq_df"]
+    if mcq_df.empty:
+        st.warning("No MCQ questions loaded. Please add data/interview_questions_mcq.csv (or project root).")
+
+    # ---------- Candidate profile ----------
     me = cands[cands["candidate_email"].str.lower() == st.session_state.user_email.lower()]
     if me.empty:
-        st.warning("We didn't find your profile in candidates.csv. A minimal profile will be used.")
+        st.warning("We didn’t find your profile in candidates.csv. A minimal profile will be used.")
         me_row = pd.Series({
             "candidate_email": st.session_state.user_email,
             "full_name": st.session_state.full_name,
@@ -177,53 +201,86 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
     cand_skills = set(s.strip() for s in skills_text.split(",") if s.strip())
     cand_text = build_candidate_text(me_row, skills_text)
 
+    # ---------- Matching ----------
     skills_map = candidate_skills_map(cands)
     matcher = _matcher(jobs, skills_map)
-
     rank = matcher.score_candidate_vs_jobs(cand_text, me_row, cand_skills).head(20)
 
     st.subheader("Top Matching Jobs")
     st.dataframe(rank[["job_id","job_title","topic","score_match"]], use_container_width=True, height=360)
 
-    # Build global skill pool from candidates for the validation quiz decoys
-    global_skill_pool = global_skill_pool_from_candidates(cands)
+    # Keep per-job quiz/answers in session
+    if "quizzes" not in st.session_state:
+        st.session_state["quizzes"] = {}
+    if "quiz_answers" not in st.session_state:
+        st.session_state["quiz_answers"] = {}
+    if "quiz_results" not in st.session_state:
+        st.session_state["quiz_results"] = {}
 
-    # Apply + validation flow
+    # ---------- Apply + validation (MCQ-only quiz by topic) ----------
     with st.expander("Apply to a job"):
-        chosen = st.selectbox("Choose a job to apply", rank["job_id"].tolist())
+        options = rank["job_id"].tolist()
+        chosen = st.selectbox("Choose a job to apply", options) if options else None
+
         if chosen:
             job_row = jobs[jobs["job_id"] == chosen].iloc[0]
-            st.write(f"**{job_row['job_title']}** — {job_row.get('topic','')}")
-            quiz = build_quiz(job_row, global_skill_pool)
+            st.write(f"*{job_row['job_title']}* — {job_row.get('topic','')}")
 
-            answers = []
-            for i, q in enumerate(quiz, start=1):
-                st.markdown(f"**Q{i}. {q['question']}**")
-                if q.get("code"):
-                    st.code(q["code"], language="python")
-                if q["type"] == "single":
-                    ans = st.radio("", options=list(range(len(q["options"]))),
-                                   format_func=lambda k: q["options"][k], key=f"q{i}")
-                else:
-                    ans = st.multiselect("", options=list(range(len(q["options"]))),
-                                         format_func=lambda k: q["options"][k], key=f"q{i}")
-                answers.append(ans)
-
-            if st.button("Submit validation"):
-                res = grade_quiz(answers, quiz)
-                st.success(f"Validation score: {res['score_raw']}/{res['score_max']} ({res['score_pct']}%)")
-
-                # Retrieve match score for this job from current ranking
-                mrow = rank[rank["job_id"] == chosen].iloc[0]
-                saved = save_application(
-                    chosen,
-                    st.session_state.user_email,
-                    res["score_pct"],
-                    round(float(mrow["score_match"]), 4),
+            # Build the quiz once per job_id (MCQ dataset only)
+            if chosen not in st.session_state["quizzes"]:
+                quiz = build_quiz(
+                    job_row,
+                    global_skill_pool=[],     # not used by builder
+                    mcq_df=mcq_df,            # REQUIRED
                 )
-                st.balloons()
-                st.info("Successfully applied! You can review your applications below.")
+                st.session_state["quizzes"][chosen] = quiz
+                st.session_state["quiz_answers"][chosen] = default_answers_skeleton(quiz)
 
+            quiz = st.session_state["quizzes"][chosen]
+            answers = st.session_state["quiz_answers"][chosen]
+
+            if not quiz:
+                st.warning("No questions available for this topic. Check that the job topic matches the CSV topics.")
+            else:
+
+                with st.form(key=f"quiz_form_{chosen}", clear_on_submit=False):
+                    for i, q in enumerate(quiz):
+                        st.markdown(f"*Q{i+1}. {q['question']}*")
+                        # Single-choice: store selected index
+                        opts = list(enumerate(q["options"]))
+                        default_idx = answers[i] if isinstance(answers[i], int) and 0 <= answers[i] < len(opts) else 0
+                        sel = st.radio(
+                            label="",
+                            options=opts,
+                            format_func=lambda p: p[1],
+                            index=default_idx,
+                            key=f"{chosen}_q{i}_single",
+                        )
+                        answers[i] = sel[0]
+                        st.write("---")
+
+                    submitted = st.form_submit_button("Submit validation", use_container_width=True)
+
+                # Persist current answers
+                st.session_state["quiz_answers"][chosen] = answers
+
+                if submitted:
+                    res = grade_quiz(answers, quiz)
+                    st.session_state["quiz_results"][chosen] = res
+                    st.success(f"Validation score: {res['score_raw']}/{res['score_max']} ({res['score_pct']}%)")
+
+                    # Save application with validation + match score
+                    mrow = rank[rank["job_id"] == chosen].iloc[0]
+                    saved = save_application(
+                        chosen,
+                        st.session_state.user_email,
+                        res["score_pct"],
+                        round(float(mrow["score_match"]), 4),
+                    )
+                    st.balloons()
+                    st.info("Successfully applied! You can review your applications below.")
+
+    # ---------- My applications ----------
     st.subheader("My Applications")
     apps = apps_for_candidate(st.session_state.user_email)
     if apps.empty:

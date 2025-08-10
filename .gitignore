@@ -1,4 +1,5 @@
 talentAI-env/
+myenv/
 __pycache__/
 *.index
 *.npy
