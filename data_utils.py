@@ -361,3 +361,55 @@ def extract_cv_fields(cv_text, name, email):
         "seniority": seniority,
         "created_at": created_at
     }
+
+# -----------------------------
+# Job creation helper
+# -----------------------------
+
+def create_job(
+    posted_by: str,
+    topic: str,
+    job_title: str,
+    site_remote_country: str = "",
+    tasks: str = "",
+    perks_benefits: str = "",
+    skills_tech: str = "",
+    educational_reqs: str = "",
+    seniority: str = "",
+    yoe: str | int | float = "",
+    employment_type: str = "",
+    extra_info: str = ""
+) -> dict:
+    """
+    Append a new job row to jobs.csv, auto-generating job_id and timestamps.
+    Returns the inserted job as a dict.
+    """
+    jobs = load_jobs()  # ensures file + normalizes columns
+    # Make a stable-ish id: slug on title + short uuid
+    base_id = slugify(f"{job_title}") or "job"
+    short_uid = str(uuid.uuid4())[:8]
+    job_id = f"{base_id}-{short_uid}"
+
+    new_row = {
+        "job_id": job_id,
+        "posted_by": posted_by,
+        "topic": topic,
+        "job_title": job_title,
+        "site (remote country)": site_remote_country,
+        "tasks": tasks,
+        "Perks/Benefits": perks_benefits,
+        "Skills/Tech-stack required": skills_tech,
+        "Educational requirements": educational_reqs,
+        "seniority": seniority,
+        "yoe": yoe,
+        "employment_type": employment_type,
+        "extra_info": extra_info,
+        "created_at": _iso_now(),
+    }
+
+    jobs = pd.concat([jobs, pd.DataFrame([new_row])], ignore_index=True)
+    # Re-ensure id/posted_by integrity (no-ops for our row but keeps file consistent)
+    jobs = ensure_job_ids(jobs)
+    jobs = ensure_posted_by(jobs, default_owner=posted_by)
+    jobs.to_csv(JOBS_FILE, index=False)
+    return new_row

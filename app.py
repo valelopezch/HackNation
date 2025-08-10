@@ -232,14 +232,127 @@ def login_view():
 # Recruiter views
 # -----------------------------
 
+# def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame, matcher):
+#     st.header("Recruiter Dashboard")
+#     my_jobs = jobs[jobs["posted_by"].str.lower() == st.session_state.user_email.lower()] \
+#               if "posted_by" in jobs.columns else jobs
+
+#     st.subheader("My Jobs")
+#     if my_jobs.empty:
+#         st.info("No jobs found for your account.")
+#         return
+
+#     st.dataframe(
+#         my_jobs[["job_id","job_title","topic","site (remote country)","seniority","yoe","employment_type"]],
+#         use_container_width=True, height=280
+#     )
+
+#     # Select a job
+#     job_id = st.selectbox("Select a job to analyze", my_jobs["job_id"].tolist())
+#     job_row = my_jobs[my_jobs["job_id"] == job_id].iloc[0]
+
+#     # Build candidate skills map from candidates.csv (since skills.csv was removed)
+#     skills_map = candidate_skills_map(cands)
+#     # jobs_sig = df_sha256(jobs)
+#     # cfg_sig  = cfg_sha256()
+#     # matcher = _matcher(jobs, skills_map, jobs_sig, cfg_sig)
+#     global_rank = matcher.score_job_vs_candidates(job_row, cands, skills_map).head(20)
+
+#     st.subheader("Top Matches (All Candidates)")
+#     st.dataframe(global_rank, use_container_width=True, height=360)
+
+#     # Applicants-only leaderboard
+#     st.subheader("Top Matches (Applicants Only)")
+#     apps = apps_for_job(job_id)
+#     if apps.empty:
+#         st.info("No applicants yet.")
+#     else:
+#         appl_emails = apps["candidate_email"].unique().tolist()
+#         appl_cands  = cands[cands["candidate_email"].isin(appl_emails)]
+
+#         skills_map = candidate_skills_map(cands)
+#         rank_appl = matcher.score_job_vs_candidates(job_row, appl_cands, skills_map)
+
+#         # Renombrar para evitar colisión
+#         rank_appl = rank_appl[["candidate_email", "score_match"]].rename(
+#             columns={"score_match": "score_match_rank"}
+#         )
+
+#         merged = apps.merge(rank_appl, on="candidate_email", how="left")
+
+#         # Preferimos el score calculado al vuelo; fallback al guardado en apps
+#         merged["score_match_final"] = merged["score_match_rank"].combine_first(
+#             merged["score_match"]
+#         )
+
+#         merged = merged.sort_values(
+#             ["score_match_final", "score_validation"], ascending=False
+#         )
+
+#         st.dataframe(
+#             merged[["candidate_email", "score_validation", "score_match_final", "status", "created_at"]]
+#                 .rename(columns={"score_match_final": "score_match"}),
+#             use_container_width=True, height=300
+#         )
+
 def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame, matcher):
     st.header("Recruiter Dashboard")
+
+    # --- New: Post a job ---
+    with st.expander("➕ Post a new job", expanded=False):
+        with st.form("new_job_form", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            with c1:
+                topic = st.text_input("Topic (e.g., Computer Vision, MLE, LLMs)", "")
+                job_title = st.text_input("Job title *", "")
+                site_remote_country = st.text_input("Site (remote country)", "")
+                seniority = st.text_input("Seniority (e.g., Junior, Mid, Senior)", "")
+                yoe = st.text_input("Years of experience (required)", "")
+                employment_type = st.text_input("Employment type (Full-time / Contract / ...)", "")
+            with c2:
+                skills_tech = st.text_area("Skills / Tech stack (comma-separated) *", height=90)
+                educational_reqs = st.text_area("Educational requirements", height=90)
+                perks_benefits = st.text_area("Perks / Benefits", height=90)
+                tasks = st.text_area("Main tasks", height=120)
+            extra_info = st.text_area("Extra info", height=80)
+
+            submitted_new_job = st.form_submit_button("Create job")
+
+        if submitted_new_job:
+            if not job_title or not skills_tech:
+                st.error("Please fill at least Job title and Skills/Tech stack.")
+            else:
+                try:
+                    from data_utils import create_job
+                    created = create_job(
+                        posted_by=st.session_state.user_email,
+                        topic=topic,
+                        job_title=job_title,
+                        site_remote_country=site_remote_country,
+                        tasks=tasks,
+                        perks_benefits=perks_benefits,
+                        skills_tech=skills_tech,
+                        educational_reqs=educational_reqs,
+                        seniority=seniority,
+                        yoe=yoe,
+                        employment_type=employment_type,
+                        extra_info=extra_info
+                    )
+                    st.success(f"Job created: {created['job_title']} ({created['job_id']})")
+                    # IMPORTANT: refresh caches so vector stores rebuild and include this job
+                    st.cache_data.clear()
+                    st.cache_resource.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.exception(e)
+
+    # --- Existing: My Jobs + matching ---
     my_jobs = jobs[jobs["posted_by"].str.lower() == st.session_state.user_email.lower()] \
               if "posted_by" in jobs.columns else jobs
 
     st.subheader("My Jobs")
     if my_jobs.empty:
-        st.info("No jobs found for your account.")
+        st.info("No jobs found for your account yet. Use **Post a new job** above.")
         return
 
     st.dataframe(
@@ -251,17 +364,14 @@ def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame, matcher):
     job_id = st.selectbox("Select a job to analyze", my_jobs["job_id"].tolist())
     job_row = my_jobs[my_jobs["job_id"] == job_id].iloc[0]
 
-    # Build candidate skills map from candidates.csv (since skills.csv was removed)
+    # Build candidate skills map
     skills_map = candidate_skills_map(cands)
-    # jobs_sig = df_sha256(jobs)
-    # cfg_sig  = cfg_sha256()
-    # matcher = _matcher(jobs, skills_map, jobs_sig, cfg_sig)
     global_rank = matcher.score_job_vs_candidates(job_row, cands, skills_map).head(20)
 
     st.subheader("Top Matches (All Candidates)")
     st.dataframe(global_rank, use_container_width=True, height=360)
 
-    # Applicants-only leaderboard
+    # Applicants-only leaderboard (unchanged)
     st.subheader("Top Matches (Applicants Only)")
     apps = apps_for_job(job_id)
     if apps.empty:
@@ -272,28 +382,17 @@ def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame, matcher):
 
         skills_map = candidate_skills_map(cands)
         rank_appl = matcher.score_job_vs_candidates(job_row, appl_cands, skills_map)
-
-        # Renombrar para evitar colisión
-        rank_appl = rank_appl[["candidate_email", "score_match"]].rename(
-            columns={"score_match": "score_match_rank"}
-        )
-
+        rank_appl = rank_appl[["candidate_email", "score_match"]].rename(columns={"score_match": "score_match_rank"})
         merged = apps.merge(rank_appl, on="candidate_email", how="left")
-
-        # Preferimos el score calculado al vuelo; fallback al guardado en apps
-        merged["score_match_final"] = merged["score_match_rank"].combine_first(
-            merged["score_match"]
-        )
-
-        merged = merged.sort_values(
-            ["score_match_final", "score_validation"], ascending=False
-        )
+        merged["score_match_final"] = merged["score_match_rank"].combine_first(merged["score_match"])
+        merged = merged.sort_values(["score_match_final", "score_validation"], ascending=False)
 
         st.dataframe(
             merged[["candidate_email", "score_validation", "score_match_final", "status", "created_at"]]
                 .rename(columns={"score_match_final": "score_match"}),
             use_container_width=True, height=300
         )
+
 
 # -----------------------------
 # Candidate views
