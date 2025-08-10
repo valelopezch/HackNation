@@ -4,3 +4,6 @@ app_id,job_id,candidate_email,status,score_validation,score_match,created_at
 ,ai-ai-agent-developer-01,patricia.newton@hotmail.com,applied,,,2025-08-09T23:49:17.733555+00:00
 ,ai-forward-deployed-ai-engineer-enterprise-01,patricia.newton@hotmail.com,applied,,,2025-08-09T23:49:17.733555+00:00
 ,ai-project-lead-app-development-01,patricia.newton@hotmail.com,applied,,,2025-08-09T23:49:17.733555+00:00
+730bf0e2,ml-data-scientist-iii-research-01,fefi@fefi,applied,20.0,0.1384,2025-08-10T02:56:06.688226+00:00
+2448a40e,llm-specialist-5a51a818,fefi@fefi,applied,100.0,0.4565,2025-08-10T02:59:45.731195+00:00
+95c16aa1,cv-data-scientist-specialist-01,fefisita@fefisita.com,applied,20.0,0.2352,2025-08-10T03:26:58.507268+00:00

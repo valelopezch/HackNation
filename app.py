@@ -61,6 +61,14 @@ def _matcher(jobs_sig: str, cands_sig: str, cfg_sig: str, jobs_df: pd.DataFrame,
 # UI helpers
 # -----------------------------
 
+def clean_skill_string(skill):
+    """Clean skill string by removing leading/trailing parentheses, quotes, and whitespace"""
+    if not skill:
+        return ""
+    # Remove leading/trailing parentheses, quotes, and whitespace
+    cleaned = skill.strip().strip("()").strip("'").strip('"').strip()
+    return cleaned
+
 def logout():
     for k, v in DEFAULTS.items():
         st.session_state[k] = v
@@ -99,10 +107,6 @@ def header_nav():
 #         else:
 #             st.error("Invalid credentials")
 
-def is_valid_email(email: str) -> bool:
-    """Basic email check: must contain @ and a dot after it."""
-    return "@" in email and "." in email.split("@")[-1]
-
 def is_valid_password(password: str) -> bool:
     """Check if password > 8 chars and contains at least one special char."""
     return len(password) > 8 and bool(re.search(r"[^A-Za-z0-9]", password))
@@ -119,11 +123,8 @@ def login_view():
             p = st.text_input("Password", type="password")
             submitted = st.form_submit_button("Sign in")
         if submitted:
-            # Basic validation
-            if not is_valid_email(u):
-                st.error("Please enter a valid email address.")
-            elif not is_valid_password(p):
-                st.error("Password must be longer than 8 characters and include at least one special character.")
+            if not is_valid_password(p):
+                st.error("Invalid credentials")
             else:
                 auth = authenticate_user(u, p)
                 if auth:
@@ -151,7 +152,6 @@ def login_view():
             location = st.text_input("Location", key="su_location")
             role = st.selectbox("Role *", ["", "candidate", "recruiter"], index=0, key="su_role")
 
-        # Role-specific UI shows immediately because it's NOT in a form
         cand_title = about = skills = preferred_type = seniority = ""
         yoe = "0"
         company_name = company_site = company_bio = ""
@@ -198,13 +198,10 @@ def login_view():
 
         if submit_up:
             if not email or not full_name or not password or not password2 or not role:
-                st.error("Please fill all required fields (*), including Role.")
-                return
-            if not is_valid_email(email):
-                st.error("Please enter a valid email address.")
+                st.error("Please fill all required fields.")
                 return
             if not is_valid_password(password):
-                st.error("Password must be longer than 8 characters and include at least one special character.")
+                st.error("Invalid credentials")
                 return
             if password != password2:
                 st.error("Passwords do not match.")
@@ -247,7 +244,6 @@ def login_view():
                 st.error(str(ve))
             except Exception as e:
                 st.exception(e)
-
 # -----------------------------
 # Recruiter views
 # -----------------------------
@@ -370,7 +366,7 @@ def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame, matcher):
     my_jobs = jobs[jobs["posted_by"].str.lower() == st.session_state.user_email.lower()] \
               if "posted_by" in jobs.columns else jobs
 
-    st.subheader("My Jobs")
+    st.subheader("💼 My Jobs")
     if my_jobs.empty:
         st.info("No jobs found for your account yet. Use **Post a new job** above.")
         return
@@ -388,11 +384,11 @@ def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame, matcher):
     skills_map = candidate_skills_map(cands)
     global_rank = matcher.score_job_vs_candidates(job_row, cands, skills_map).head(20)
 
-    st.subheader("Top Matches (All Candidates)")
+    st.subheader("🏆 Top Matches (All Candidates)")
     st.dataframe(global_rank, use_container_width=True, height=360)
 
     # Applicants-only leaderboard (unchanged)
-    st.subheader("Top Matches (Applicants Only)")
+    st.subheader("🎯 Top Matches (Applicants Only)")
     apps = apps_for_job(job_id)
     if apps.empty:
         st.info("No applicants yet.")
@@ -407,12 +403,189 @@ def recruiter_home(jobs: pd.DataFrame, cands: pd.DataFrame, matcher):
         merged["score_match_final"] = merged["score_match_rank"].combine_first(merged["score_match"])
         merged = merged.sort_values(["score_match_final", "score_validation"], ascending=False)
 
-        st.dataframe(
-            merged[["candidate_email", "score_validation", "score_match_final", "status", "created_at"]]
-                .rename(columns={"score_match_final": "score_match"}),
-            use_container_width=True, height=300
-        )
-
+        # Enhanced applicants dashboard
+        st.caption(f"Showing {len(merged)} applicant(s) for this position")
+        
+        # Create tabs for better organization
+        tab1, tab2 = st.tabs(["📊 Dashboard View", "📋 Table View"])
+        
+        with tab1:
+            # Dashboard view with detailed applicant information
+            for idx, app in merged.iterrows():
+                # Get candidate details for this application
+                candidate_details = cands[cands["candidate_email"] == app["candidate_email"]]
+                if candidate_details.empty:
+                    continue
+                    
+                candidate = candidate_details.iloc[0]
+                
+                # Create an expander for each applicant
+                with st.expander(f"👤 {candidate.get('full_name', 'Unknown')} - {candidate.get('candidate_title', 'N/A')}", expanded=False):
+                    # Header with key information
+                    col1, col2, col3 = st.columns([2, 1, 1])
+                    
+                    with col1:
+                        st.markdown(f"**Email:** {candidate.get('candidate_email', 'N/A')}")
+                        st.markdown(f"**Location:** {candidate.get('location', 'N/A')}")
+                        st.markdown(f"**Preferred Employment:** {candidate.get('preferred_employment_type', 'N/A')}")
+                    
+                    with col2:
+                        # Match score analysis
+                        match_score = app.get('score_match_final', 0)
+                        if match_score:
+                            match_pct = min(100, max(0, float(match_score) * 100))
+                            st.metric("Match Score", f"{match_pct:.1f}%")
+                            
+                            # Color-coded match indicator
+                            if match_pct >= 70:
+                                st.success("🎯 Excellent Match")
+                            elif match_pct >= 50:
+                                st.info("✅ Good Match")
+                            elif match_pct >= 30:
+                                st.warning("⚠️ Moderate Match")
+                            else:
+                                st.error("❌ Low Match")
+                        else:
+                            st.info("Match score not available")
+                    
+                    with col3:
+                        # Validation score
+                        val_score = app.get('score_validation', 0)
+                        if val_score:
+                            st.metric("Validation Score", f"{val_score:.0f}%")
+                            if val_score >= 80:
+                                st.success("🎓 Excellent")
+                            elif val_score >= 60:
+                                st.info("✅ Good")
+                            elif val_score >= 40:
+                                st.warning("⚠️ Fair")
+                            else:
+                                st.error("❌ Needs Improvement")
+                        else:
+                            st.info("Validation not completed")
+                    
+                    st.markdown("---")
+                    
+                    # Candidate details section
+                    st.subheader("👤 Candidate Profile")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown(f"**Seniority Level:** {candidate.get('seniority', 'N/A')}")
+                        st.markdown(f"**Years of Experience:** {candidate.get('yoe', 'N/A')}")
+                        st.markdown(f"**Application Status:** {app.get('status', 'N/A').title()}")
+                        st.markdown(f"**Applied:** {app.get('created_at', 'N/A')}")
+                        
+                        # Skills
+                        if candidate.get('skills'):
+                            st.markdown("**Skills:**")
+                            skills_list = [clean_skill_string(skill) for skill in str(candidate['skills']).split(',') if skill.strip()]
+                            for skill in skills_list[:10]:  # Show first 10 skills
+                                st.markdown(f"• {skill}")
+                            if len(skills_list) > 10:
+                                st.caption(f"... and {len(skills_list) - 10} more skills")
+                    
+                    with col2:
+                        st.markdown(f"**About:** {candidate.get('about', 'N/A')}")
+                        
+                        # Application performance summary
+                        st.markdown("**📊 Application Summary:**")
+                        if match_score and val_score:
+                            overall_score = (match_pct + val_score) / 2
+                            st.metric("Overall Score", f"{overall_score:.1f}%")
+                            
+                            if overall_score >= 75:
+                                st.success("🌟 **Top Candidate**")
+                            elif overall_score >= 60:
+                                st.info("✅ **Strong Candidate**")
+                            elif overall_score >= 45:
+                                st.warning("⚠️ **Consider**")
+                            else:
+                                st.error("❌ **May Need More Review**")
+                        else:
+                            st.info("Complete scoring not available")
+                    
+                    # About section (if available)
+                    if candidate.get('about') and len(str(candidate['about'])) > 50:
+                        st.markdown("**📝 About Candidate:**")
+                        st.info(candidate['about'])
+                    
+                    # Why this candidate is a good match analysis
+                    st.markdown("---")
+                    st.subheader("🔍 Why This Candidate is a Good Match (or Not)")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        if match_score:
+                            st.markdown("**Match Analysis:**")
+                            if match_pct >= 70:
+                                st.success(f"🎯 **Excellent Match!** This candidate's profile aligns very well with the position requirements. The {match_pct:.1f}% match score indicates strong compatibility in skills, experience, and qualifications.")
+                            elif match_pct >= 50:
+                                st.info(f"✅ **Good Match** - The candidate shows good alignment with this role. The {match_pct:.1f}% match score suggests they meet most key requirements.")
+                            elif match_pct >= 30:
+                                st.warning(f"⚠️ **Moderate Match** - There's some alignment, but the candidate may need to highlight specific skills or experience to improve their fit.")
+                            else:
+                                st.error(f"❌ **Low Match** - This candidate may not be the best fit for this position based on their current profile.")
+                        else:
+                            st.info("Match analysis not available for this application.")
+                    
+                    with col2:
+                        if val_score:
+                            st.markdown("**Validation Performance:**")
+                            if val_score >= 80:
+                                st.success(f"🎓 **Excellent Performance** - The candidate scored {val_score:.0f}% on the validation quiz, demonstrating strong knowledge in this domain.")
+                            elif val_score >= 60:
+                                st.info(f"✅ **Good Performance** - Their {val_score:.0f}% score shows solid understanding of the required concepts.")
+                            elif val_score >= 40:
+                                st.warning(f"⚠️ **Fair Performance** - Their {val_score:.0f}% score indicates some knowledge gaps that could be addressed.")
+                            else:
+                                st.error(f"❌ **Needs Improvement** - Their {val_score:.0f}% score suggests focusing on building knowledge in this area.")
+                        else:
+                            st.info("Validation quiz not completed for this application.")
+                    
+                    # Job-specific insights
+                    st.markdown("---")
+                    st.subheader("🎯 Position-Specific Insights")
+                    
+                    # Compare candidate skills with job requirements
+                    if candidate.get('skills') and job_row.get('Skills/Tech-stack required'):
+                        candidate_skills = set(s.strip().lower() for s in str(candidate['skills']).split(',') if s.strip())
+                        job_skills = set(s.strip().lower() for s in str(job_row['Skills/Tech-stack required']).split(',') if s.strip())
+                        
+                        matching_skills = candidate_skills.intersection(job_skills)
+                        missing_skills = job_skills - candidate_skills
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            if matching_skills:
+                                st.markdown("**✅ Matching Skills:**")
+                                for skill in sorted(list(matching_skills))[:8]:
+                                    st.markdown(f"• {skill}")
+                                if len(matching_skills) > 8:
+                                    st.caption(f"... and {len(matching_skills) - 8} more")
+                            else:
+                                st.warning("No matching skills found")
+                        
+                        with col2:
+                            if missing_skills:
+                                st.markdown("**❌ Missing Skills:**")
+                                for skill in sorted(list(missing_skills))[:8]:
+                                    st.markdown(f"• {skill}")
+                                if len(missing_skills) > 8:
+                                    st.caption(f"... and {len(missing_skills) - 8} more")
+                            else:
+                                st.success("All required skills are covered!")
+        
+        with tab2:
+            # Original table view for quick reference
+            st.dataframe(
+                merged[["candidate_email", "score_validation", "score_match_final", "status", "created_at"]]
+                    .rename(columns={"score_match_final": "score_match"}),
+                use_container_width=True, height=400
+            )
 
 # -----------------------------
 # Candidate views
@@ -466,6 +639,34 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame, matcher):
     cand_skills = set(s.strip() for s in skills_text.split(",") if s.strip())
     cand_text = build_candidate_text(me_row, skills_text)
 
+    # ---------- Profile editing ----------
+    if st.button("✏️ Edit my profile"):
+        with st.form("edit_profile_form"):
+            full_name = st.text_input("Full name", value=me_row.get("full_name", ""))
+            cand_title = st.text_input("Candidate title", value=me_row.get("candidate_title", ""))
+            about = st.text_area("About", value=me_row.get("about", ""))
+            skills = st.text_input("Skills (comma-separated)", value=me_row.get("skills", ""))
+            yoe = st.text_input("Years of experience (YOE)", value=str(me_row.get("yoe", "0")))
+            seniority = st.text_input("Seniority", value=me_row.get("seniority", ""))
+            location = st.text_input("Location", value=me_row.get("location", ""))
+            preferred_type = st.text_input("Preferred employment type", value=me_row.get("preferred_employment_type", ""))
+
+            submitted = st.form_submit_button("Save changes")
+            if submitted:
+                upsert_candidate_profile(
+                    candidate_email=st.session_state.user_email,
+                    full_name=full_name,
+                    candidate_title=cand_title,
+                    about=about,
+                    location=location,
+                    preferred_employment_type=preferred_type,
+                    yoe=yoe,
+                    seniority=seniority,
+                    skills=skills
+                )
+                st.success("Profile updated!")
+                st.rerun()
+
     # ---------- Matching ----------
     # skills_map = candidate_skills_map(cands)
     # jobs_sig = df_sha256(jobs)
@@ -485,7 +686,7 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame, matcher):
         st.session_state["quiz_results"] = {}
 
     # ---------- Apply + validation (MCQ-only quiz by topic) ----------
-    with st.expander("Apply to a job"):
+    with st.expander("🔍 Apply to a job"):
         options = rank["job_id"].tolist()
         chosen = st.selectbox("Choose a job to apply", options) if options else None
 
@@ -548,12 +749,158 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame, matcher):
                     st.info("Successfully applied! You can review your applications below.")
 
     # ---------- My applications ----------
-    st.subheader("My Applications")
+    st.subheader("📋 My Applications")
     apps = apps_for_candidate(st.session_state.user_email)
     if apps.empty:
         st.caption("No applications yet.")
     else:
-        st.dataframe(apps, use_container_width=True, height=260)
+        # Enhanced applications dashboard
+        st.caption(f"Showing {len(apps)} application(s)")
+        
+        # Create tabs for better organization
+        tab1, tab2 = st.tabs(["📊 Dashboard View", "📋 Table View"])
+        
+        with tab1:
+            # Dashboard view with detailed information
+            for idx, app in apps.iterrows():
+                # Get job details for this application
+                job_details = jobs[jobs["job_id"] == app["job_id"]]
+                if job_details.empty:
+                    continue
+                    
+                job = job_details.iloc[0]
+                
+                # Create an expander for each application
+                with st.expander(f"🎯 {job['job_title']} - {job.get('topic', 'N/A')}", expanded=False):
+                    # Header with key information
+                    col1, col2, col3 = st.columns([2, 1, 1])
+                    
+                    with col1:
+                        st.markdown(f"**Company:** {job.get('posted_by', 'N/A')}")
+                        st.markdown(f"**Location:** {job.get('site (remote country)', 'N/A')}")
+                        st.markdown(f"**Employment Type:** {job.get('employment_type', 'N/A')}")
+                    
+                    with col2:
+                        # Match score analysis
+                        match_score = app.get('score_match', 0)
+                        if match_score:
+                            match_pct = min(100, max(0, float(match_score) * 100))
+                            st.metric("Match Score", f"{match_pct:.1f}%")
+                            
+                            # Color-coded match indicator
+                            if match_pct >= 70:
+                                st.success("🎯 Excellent Match")
+                            elif match_pct >= 50:
+                                st.info("✅ Good Match")
+                            elif match_pct >= 30:
+                                st.warning("⚠️ Moderate Match")
+                            else:
+                                st.error("❌ Low Match")
+                        else:
+                            st.info("Match score not available")
+                    
+                    with col3:
+                        # Validation score
+                        val_score = app.get('score_validation', 0)
+                        if val_score:
+                            st.metric("Validation Score", f"{val_score:.0f}%")
+                            if val_score >= 80:
+                                st.success("🎓 Excellent")
+                            elif val_score >= 60:
+                                st.info("✅ Good")
+                            elif val_score >= 40:
+                                st.warning("⚠️ Fair")
+                            else:
+                                st.error("❌ Needs Improvement")
+                        else:
+                            st.info("Validation not completed")
+                    
+                    st.markdown("---")
+                    
+                    # Job details section
+                    st.subheader("📋 Job Details")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown(f"**Seniority Level:** {job.get('seniority', 'N/A')}")
+                        st.markdown(f"**Years of Experience:** {job.get('yoe', 'N/A')}")
+                        st.markdown(f"**Topic:** {job.get('topic', 'N/A')}")
+                        
+                        # Skills required
+                        if job.get('Skills/Tech-stack required'):
+                            st.markdown("**Skills Required:**")
+                            skills_list = [clean_skill_string(skill) for skill in str(job['Skills/Tech-stack required']).split(',') if skill.strip()]
+                            for skill in skills_list[:10]:  # Show first 10 skills
+                                st.markdown(f"• {skill}")
+                            if len(skills_list) > 10:
+                                st.caption(f"... and {len(skills_list) - 10} more skills")
+                    
+                    with col2:
+                        st.markdown(f"**Educational Requirements:** {job.get('Educational requirements', 'N/A')}")
+                        st.markdown(f"**Application Status:** {app.get('status', 'N/A').title()}")
+                        st.markdown(f"**Applied:** {app.get('created_at', 'N/A')}")
+                        
+                        # Perks/Benefits
+                        if job.get('Perks/Benefits'):
+                            st.markdown("**Perks & Benefits:**")
+                            perks_list = [clean_skill_string(perk) for perk in str(job['Perks/Benefits']).split(',') if perk.strip()]
+                            for perk in perks_list[:5]:  # Show first 5 perks
+                                st.markdown(f"• {perk}")
+                            if len(perks_list) > 5:
+                                st.caption(f"... and {len(perks_list) - 5} more perks")
+                    
+                    # Tasks section
+                    if job.get('tasks'):
+                        st.markdown("**📝 Key Tasks:**")
+                        tasks_list = [clean_skill_string(task) for task in str(job['tasks']).split('\n') if task.strip()]
+                        for task in tasks_list[:8]:  # Show first 8 tasks
+                            st.markdown(f"• {task}")
+                        if len(tasks_list) > 8:
+                            st.caption(f"... and {len(tasks_list) - 8} more tasks")
+                    
+                    # Extra info if available
+                    if job.get('extra_info'):
+                        st.markdown("**ℹ️ Additional Information:**")
+                        st.info(job['extra_info'])
+                    
+                    # Why this is a good match analysis
+                    st.markdown("---")
+                    st.subheader("🔍 Why This Job is a Good Match (or Not)")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        if match_score:
+                            st.markdown("**Match Analysis:**")
+                            if match_pct >= 70:
+                                st.success(f"🎯 **Excellent Match!** Your profile aligns very well with this position. The {match_pct:.1f}% match score indicates strong compatibility in skills, experience, and requirements.")
+                            elif match_pct >= 50:
+                                st.info(f"✅ **Good Match** - Your profile shows good alignment with this role. The {match_pct:.1f}% match score suggests you meet most key requirements.")
+                            elif match_pct >= 30:
+                                st.warning(f"⚠️ **Moderate Match** - There's some alignment, but you may need to highlight specific skills or experience to improve your chances.")
+                            else:
+                                st.error(f"❌ **Low Match** - This position may not be the best fit based on current profile. Consider focusing on roles that better match your skills.")
+                        else:
+                            st.info("Match analysis not available for this application.")
+                    
+                    with col2:
+                        if val_score:
+                            st.markdown("**Validation Performance:**")
+                            if val_score >= 80:
+                                st.success(f"🎓 **Excellent Performance** - You scored {val_score:.0f}% on the validation quiz, demonstrating strong knowledge in this area.")
+                            elif val_score >= 60:
+                                st.info(f"✅ **Good Performance** - Your {val_score:.0f}% score shows solid understanding of the required concepts.")
+                            elif val_score >= 40:
+                                st.warning(f"⚠️ **Fair Performance** - Your {val_score:.0f}% score indicates some knowledge gaps that could be addressed.")
+                            else:
+                                st.error(f"❌ **Needs Improvement** - Your {val_score:.0f}% score suggests focusing on building knowledge in this domain.")
+                        else:
+                            st.info("Validation quiz not completed for this application.")
+        
+        with tab2:
+            # Original table view for quick reference
+            st.dataframe(apps, use_container_width=True, height=400)
 
 # -----------------------------
 # Router
