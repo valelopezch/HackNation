@@ -125,7 +125,20 @@ class HybridMatcher:
 
         # Mezcla con skills y reglas
         scores = []
+
+        # print("[DBG] jobs_len:", len(self.jobs), "jobs_index[:10]:", list(self.jobs.index)[:10])
+        # print("[DBG] tfidf_mat_rows:", getattr(self, "job_X", np.empty((0,))).shape[0])
+        # try:
+        #     print("[DBG] faiss_ntotal:", self.faiss_index.ntotal)
+        # except Exception as e:
+        #     print("[DBG] faiss_ntotal error:", e)
+        # print("[DBG] len(sim_tfidf):", len(sim_tfidf))
+        # print("[DBG] len(sim_emb):", len(sim_emb))
+
         for i, job in self.jobs.iterrows():
+            # if i >= len(sim_tfidf):
+            #     print("[DBG] index mismatch -> i:", i, "len(sim_tfidf):", len(sim_tfidf))
+            #     break
             penalty = _rule_penalties(job, cand_row)
             skill_ov = skill_overlap_score(cand_skills, set(job.get("skills", [])))
             score = (w_tfidf*sim_tfidf[i] + w_emb*sim_emb[i] + w_skill*skill_ov) * (1 - penalty)

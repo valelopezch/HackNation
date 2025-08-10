@@ -158,7 +158,7 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
 
     me = cands[cands["candidate_email"].str.lower() == st.session_state.user_email.lower()]
     if me.empty:
-        st.warning("We didn’t find your profile in candidates.csv. A minimal profile will be used.")
+        st.warning("We didn't find your profile in candidates.csv. A minimal profile will be used.")
         me_row = pd.Series({
             "candidate_email": st.session_state.user_email,
             "full_name": st.session_state.full_name,

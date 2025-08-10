@@ -1,0 +1,6 @@
+email,password_hash,role,full_name,location,created_at
+patricia.newton@hotmail.com,33iUXuS59A,candidate,User 1,,2025-08-09T23:50:09.291053+00:00
+julie.gonzales@hotmail.com,fVLnCAXIJS,candidate,User 2,,2025-08-09T23:50:09.291053+00:00
+larry.king@hotmail.com,HE0Y5MGYJ7,candidate,User 3,,2025-08-09T23:50:09.291053+00:00
+chan_vazquez_and_carter@demo,KRVWy0USna,recruiter,User 4,,2025-08-09T23:50:09.291053+00:00
+stewart_freeman_and_fox@demo,ePiuDYyO0G,recruiter,User 5,,2025-08-09T23:50:09.291053+00:00

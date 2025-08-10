@@ -1,46 +1,46 @@
-company_name,email,posted_jobs
-"Stewart, Gates and Kelley",stewart_gates_and_kelley@demo,12
-Martin-Bennett,martin-bennett@demo,11
-Friedman LLC,friedman_llc@demo,8
-"Chan, Vazquez and Carter",chan_vazquez_and_carter@demo,8
-"Stewart, Freeman and Fox",stewart_freeman_and_fox@demo,8
-Burns-Parsons,burns-parsons@demo,8
-Dixon Inc,dixon_inc@demo,8
-Mitchell-Hoffman,mitchell-hoffman@demo,8
-Adkins-Rodriguez,adkins-rodriguez@demo,7
-Patterson Inc,patterson_inc@demo,7
-James-Lowery,james-lowery@demo,6
-"Williams, Armstrong and Ware",williams_armstrong_and_ware@demo,6
-Mckenzie-Callahan,mckenzie-callahan@demo,6
-Taylor-Anderson,taylor-anderson@demo,6
-"Green, Schmidt and Yoder",green_schmidt_and_yoder@demo,6
-Beltran-Russell,beltran-russell@demo,6
-"Harrison, Herrera and Roberts",harrison_herrera_and_roberts@demo,6
-"Reeves, Lee and Cooper",reeves_lee_and_cooper@demo,6
-Williams and Sons,williams_and_sons@demo,5
-"Richardson, Kennedy and Johnson",richardson_kennedy_and_johnson@demo,5
-Pham Ltd,pham_ltd@demo,5
-Parker-Kemp,parker-kemp@demo,5
-"Klein, Adams and Lee",klein_adams_and_lee@demo,5
-Cuevas Ltd,cuevas_ltd@demo,5
-Morton PLC,morton_plc@demo,5
-Riley-Gonzales,riley-gonzales@demo,4
-"Erickson, Bean and Robinson",erickson_bean_and_robinson@demo,4
-Figueroa and Sons,figueroa_and_sons@demo,4
-"Curtis, Willis and Holloway",curtis_willis_and_holloway@demo,4
-"Webster, Rhodes and Bishop",webster_rhodes_and_bishop@demo,4
-Bender PLC,bender_plc@demo,4
-"Noble, Wilson and Decker",noble_wilson_and_decker@demo,4
-Payne-Johnston,payne-johnston@demo,4
-Reid-Howell,reid-howell@demo,3
-Roth-Williams,roth-williams@demo,3
-"Osborne, Burgess and Moon",osborne_burgess_and_moon@demo,3
-Parks and Sons,parks_and_sons@demo,2
-Bennett PLC,bennett_plc@demo,2
-"Olson, Aguilar and Thomas",olson_aguilar_and_thomas@demo,2
-Smith Ltd,smith_ltd@demo,2
-Byrd Ltd,byrd_ltd@demo,2
-Tucker-Robinson,tucker-robinson@demo,2
-Vazquez-Henderson,vazquez-henderson@demo,1
-Davis-Johnson,davis-johnson@demo,1
-"Johnson, Miller and Smith",johnson_miller_and_smith@demo,0
+company_name,email,posted_jobs,bio,company_site
+"Stewart, Gates and Kelley",stewart_gates_and_kelley@demo,12,,
+Martin-Bennett,martin-bennett@demo,11,,
+Friedman LLC,friedman_llc@demo,8,,
+"Chan, Vazquez and Carter",chan_vazquez_and_carter@demo,8,,
+"Stewart, Freeman and Fox",stewart_freeman_and_fox@demo,8,,
+Burns-Parsons,burns-parsons@demo,8,,
+Dixon Inc,dixon_inc@demo,8,,
+Mitchell-Hoffman,mitchell-hoffman@demo,8,,
+Adkins-Rodriguez,adkins-rodriguez@demo,7,,
+Patterson Inc,patterson_inc@demo,7,,
+James-Lowery,james-lowery@demo,6,,
+"Williams, Armstrong and Ware",williams_armstrong_and_ware@demo,6,,
+Mckenzie-Callahan,mckenzie-callahan@demo,6,,
+Taylor-Anderson,taylor-anderson@demo,6,,
+"Green, Schmidt and Yoder",green_schmidt_and_yoder@demo,6,,
+Beltran-Russell,beltran-russell@demo,6,,
+"Harrison, Herrera and Roberts",harrison_herrera_and_roberts@demo,6,,
+"Reeves, Lee and Cooper",reeves_lee_and_cooper@demo,6,,
+Williams and Sons,williams_and_sons@demo,5,,
+"Richardson, Kennedy and Johnson",richardson_kennedy_and_johnson@demo,5,,
+Pham Ltd,pham_ltd@demo,5,,
+Parker-Kemp,parker-kemp@demo,5,,
+"Klein, Adams and Lee",klein_adams_and_lee@demo,5,,
+Cuevas Ltd,cuevas_ltd@demo,5,,
+Morton PLC,morton_plc@demo,5,,
+Riley-Gonzales,riley-gonzales@demo,4,,
+"Erickson, Bean and Robinson",erickson_bean_and_robinson@demo,4,,
+Figueroa and Sons,figueroa_and_sons@demo,4,,
+"Curtis, Willis and Holloway",curtis_willis_and_holloway@demo,4,,
+"Webster, Rhodes and Bishop",webster_rhodes_and_bishop@demo,4,,
+Bender PLC,bender_plc@demo,4,,
+"Noble, Wilson and Decker",noble_wilson_and_decker@demo,4,,
+Payne-Johnston,payne-johnston@demo,4,,
+Reid-Howell,reid-howell@demo,3,,
+Roth-Williams,roth-williams@demo,3,,
+"Osborne, Burgess and Moon",osborne_burgess_and_moon@demo,3,,
+Parks and Sons,parks_and_sons@demo,2,,
+Bennett PLC,bennett_plc@demo,2,,
+"Olson, Aguilar and Thomas",olson_aguilar_and_thomas@demo,2,,
+Smith Ltd,smith_ltd@demo,2,,
+Byrd Ltd,byrd_ltd@demo,2,,
+Tucker-Robinson,tucker-robinson@demo,2,,
+Vazquez-Henderson,vazquez-henderson@demo,1,,
+Davis-Johnson,davis-johnson@demo,1,,
+"Johnson, Miller and Smith",johnson_miller_and_smith@demo,0,,
