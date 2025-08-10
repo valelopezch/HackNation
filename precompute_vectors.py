@@ -34,12 +34,11 @@ def ensure_dir(p: Path):
     p.mkdir(parents=True, exist_ok=True)
 
 
-def fit_tfidf_and_save(corpus: pd.Series, out_dir: Path):
+def fit_tfidf_and_save(corpus: pd.Series, out_dir: Path, mat_filename: str):
     vec_path = out_dir / "tfidf_vectorizer.joblib"
-    mat_path = out_dir / "tfidf.npy"
+    mat_path = out_dir / mat_filename
 
     vectorizer = TfidfVectorizer(min_df=1, ngram_range=(1, 2))
-    # (No hay barra aquí; el coste principal suele ser embeddings)
     X = vectorizer.fit_transform(corpus).toarray().astype(np.float32)
 
     joblib.dump(vectorizer, vec_path)
@@ -119,11 +118,11 @@ def main():
 
     # 5) TF-IDF + matrices
     print("\n[1/3] Fitting TF-IDF (jobs)…")
-    jvec, jX = fit_tfidf_and_save(jobs_corpus, jobs_dir)
+    jvec, jX = fit_tfidf_and_save(jobs_corpus, jobs_dir, "jobs_tfidf.npy")
     print("     ->", (jX.shape[0], jX.shape[1]))
 
     print("[2/3] Fitting TF-IDF (cands)…")
-    cvec, cX = fit_tfidf_and_save(cands_corpus, cands_dir)
+    ccvec, cX = fit_tfidf_and_save(cands_corpus, cands_dir, "cands_tfidf.npy")
     print("     ->", (cX.shape[0], cX.shape[1]))
 
     # 6) Embeddings + FAISS (con barra de progreso y GPU si hay)

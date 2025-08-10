@@ -8,7 +8,7 @@ from data_utils import (
     candidate_skills_map, global_skill_pool_from_candidates,
     get_signatures
 )
-from embed import DualMatcher, build_candidate_text
+from embed import DualMatcher, build_candidate_text, read_manifest
 from validate import build_quiz, grade_quiz, load_mcq_dataset, default_answers_skeleton
 
 import hashlib, json
@@ -51,8 +51,8 @@ def _load_all_data(users_sig, recs_sig, jobs_sig, cands_sig, apps_sig):
     return users, recruiters, jobs, cands, apps
 
 @st.cache_resource(show_spinner=False)
-def _matcher(jobs_df, cands_df, skills_map, jobs_sig: str, cands_sig: str, cfg_sig: str):
-    return DualMatcher(jobs_df, cands_df, skills_map=skills_map, model_name="paraphrase-multilingual-MiniLM-L12-v2", store_root="./vector_store")
+def _matcher(jobs_sig: str, cands_sig: str, cfg_sig: str, jobs_df: pd.DataFrame, cands_df: pd.DataFrame, skills_map: dict):
+    return DualMatcher(jobs_df, cands_df, skills_map=skills_map, store_root="./vector_store")
 
 # -----------------------------
 # UI helpers
@@ -322,7 +322,15 @@ def home_page():
 
     # matcher con firmas (clave de cache)
     skills_map = candidate_skills_map(cands)
-    matcher = _matcher(jobs, cands, skills_map, sigs["jobs"], sigs["cands"], cfg_sha256())
+    matcher = _matcher(sigs["jobs"], sigs["cands"], cfg_sha256(), jobs, cands, skills_map)
+
+    with st.sidebar.expander("⚙️ Cache status", expanded=False):
+        info = matcher.cache_status()
+        st.write("Jobs store:", info["jobs_dir"])
+        st.write("Cands store:", info["cands_dir"])
+        st.write("Status:", info["status"])
+        st.json(info["jobs_manifest"])
+        st.json(info["cands_manifest"])
 
     if not st.session_state.get("auth_ok"):
         login_view()

@@ -101,146 +101,6 @@ def skill_overlap_score(a: Set[str], b: Set[str]) -> float:
         return 0.0
     return len(a & b) / len(a | b)
 
-class HybridMatcher:
-    def __init__(
-        self,
-        jobs_df: pd.DataFrame,
-        skills_map: Dict[str, str] = None,
-        model_name: str = "paraphrase-multilingual-MiniLM-L12-v2",
-        store_dir: str = "./vector_store"
-    ):
-        # Normaliza índices
-        self.jobs = jobs_df.copy().reset_index(drop=True)
-        self.jobs_corpus = build_job_corpus(self.jobs)
-        self.skills_map = skills_map or {}
-        self.model_name = model_name
-        self.store_root = store_dir
-        os.makedirs(store_dir, exist_ok=True)
-
-        # Firmas de datos y config
-        cfg = {"model_name": model_name, "tfidf_min_df": 1, "tfidf_ngram": (1,2)}
-        jobs_sig = df_sha256(self.jobs)
-        cfg_sig  = config_sha256(cfg)
-
-        self.jobs_dir = store_dir_for(self.store_root, "jobs", jobs_sig, cfg_sig)
-        self.tfidf_path      = str(self.jobs_dir / "tfidf_vectorizer.joblib")
-        self.tfidf_mat_path  = str(self.jobs_dir / "jobs_tfidf.npy")
-        self.faiss_index_path= str(self.jobs_dir / "jobs_faiss.index")
-
-        expect_meta = {
-            "sha256": jobs_sig,
-            "rows": int(len(self.jobs)),
-            "model_name": model_name,
-            "tfidf_min_df": 1,
-            "tfidf_ngram": (1,2),
-        }
-
-        # --- TF-IDF ---
-        rebuild_tfidf = (
-            not os.path.exists(self.tfidf_path) or
-            not os.path.exists(self.tfidf_mat_path) or
-            needs_rebuild(self.jobs_dir, expect_meta)
-        )
-        if rebuild_tfidf:
-            self.vectorizer = TfidfVectorizer(min_df=1, ngram_range=(1,2))
-            self.job_X = self.vectorizer.fit_transform(self.jobs_corpus).toarray().astype(np.float32)
-            joblib.dump(self.vectorizer, self.tfidf_path)
-            np.save(self.tfidf_mat_path, self.job_X)
-        else:
-            self.vectorizer = joblib.load(self.tfidf_path)
-            self.job_X = np.load(self.tfidf_mat_path)
-
-        # --- Embeddings / FAISS (jobs) ---
-        self.model = SentenceTransformer(model_name)
-        need_faiss = True
-        if os.path.exists(self.faiss_index_path):
-            try:
-                self.faiss_index = faiss.read_index(self.faiss_index_path)
-                need_faiss = (self.faiss_index.ntotal != len(self.jobs))
-            except Exception:
-                need_faiss = True
-
-        if need_faiss:
-            job_emb = self.model.encode(self.jobs_corpus.tolist(), normalize_embeddings=True)
-            dim = job_emb.shape[1]
-            self.faiss_index = faiss.IndexFlatIP(dim)
-            self.faiss_index.add(job_emb.astype(np.float32))
-            faiss.write_index(self.faiss_index, self.faiss_index_path)
-
-        # Actualiza manifest (después de construir)
-        write_manifest(self.jobs_dir, {**expect_meta, "faiss_ntotal": int(self.faiss_index.ntotal)})
-
-    def score_candidate_vs_jobs(
-        self,
-        cand_text: str,
-        cand_row: pd.Series,
-        cand_skills: Set[str],
-        w_tfidf=0.4, w_emb=0.4, w_skill=0.2,
-        top_k: int = 20
-    ) -> pd.DataFrame:
-        # TF-IDF
-        q_tfidf = self.vectorizer.transform([cand_text]).toarray().astype(np.float32)
-        sim_tfidf = cosine_similarity(q_tfidf, self.job_X).ravel()
-
-        # Embeddings vía FAISS
-        q_emb = self.model.encode([cand_text], normalize_embeddings=True).astype(np.float32)
-        sims_emb, idxs = self.faiss_index.search(q_emb, top_k)
-        sim_emb = np.zeros(len(self.jobs))
-        for s, idx in zip(sims_emb[0], idxs[0]):
-            sim_emb[idx] = s
-
-        # Mezcla con skills y reglas
-        scores = []
-        for pos, job in self.jobs.reset_index(drop=True).iterrows():
-            penalty = _rule_penalties(job, cand_row)
-            skill_ov = skill_overlap_score(cand_skills, set(job.get("skills", [])))
-            score = (w_tfidf*sim_tfidf[pos] + w_emb*sim_emb[pos] + w_skill*skill_ov) * (1 - penalty)
-            scores.append(score)
-
-        out = self.jobs[["job_id","job_title","topic"]].copy()
-        out["score_match"] = scores
-        return out.sort_values("score_match", ascending=False).head(top_k)
-
-    def score_job_vs_candidates(
-        self,
-        job_row: pd.Series,
-        candidates_df: pd.DataFrame,
-        skills_map: Dict[str,str],
-        w_tfidf=0.4, w_emb=0.4, w_skill=0.2,
-        top_k: int = 20
-    ) -> pd.DataFrame:
-        # Prepara corpus de candidatos
-        cand_texts = []
-        cand_skills_list = []
-        for _, c in candidates_df.iterrows():
-            skills_text = skills_map.get(c["candidate_email"], "")
-            cand_texts.append(build_candidate_text(c, skills_text))
-            cand_skills_list.append(set(c.get("skills", [])))
-
-        # TF-IDF
-        Q_tfidf = self.vectorizer.transform(cand_texts).toarray().astype(np.float32)
-        j_idx = self.jobs.index[self.jobs["job_id"] == job_row["job_id"]][0]
-        sim_tfidf = cosine_similarity(Q_tfidf, self.job_X[j_idx].reshape(1, -1)).ravel()
-
-        # Embeddings vía FAISS
-        q_emb = self.model.encode([build_job_corpus(pd.DataFrame([job_row])).iloc[0]],
-                                  normalize_embeddings=True).astype(np.float32)
-        cand_emb = self.model.encode(cand_texts, normalize_embeddings=True).astype(np.float32)
-        # Similaridad coseno manual
-        sim_emb = np.sum(cand_emb * q_emb, axis=1)
-
-        # Mezcla con skills y reglas
-        scores = []
-        for (idx, c), s_tfidf, s_emb, s_skills in zip(candidates_df.iterrows(), sim_tfidf, sim_emb, cand_skills_list):
-            penalty = _rule_penalties(job_row, c)
-            skill_ov = skill_overlap_score(s_skills, set(job_row.get("skills", [])))
-            score = (w_tfidf*s_tfidf + w_emb*s_emb + w_skill*skill_ov) * (1 - penalty)
-            scores.append(score)
-
-        out = candidates_df[["candidate_email","full_name"]].copy()
-        out["score_match"] = scores
-        return out.sort_values("score_match", ascending=False).head(top_k)
-
 class DualMatcher:
     """
     Índices persistentes y separados:
@@ -256,6 +116,8 @@ class DualMatcher:
         store_root: str = "./vector_store",
     ):
         # Datos base (índices posicionales limpios)
+        self.debug = {"jobs": {}, "cands": {}}
+
         self.jobs  = jobs_df.copy().reset_index(drop=True)
         self.cands = cands_df.copy().reset_index(drop=True)
         self.skills_map = skills_map or {}
@@ -291,6 +153,8 @@ class DualMatcher:
             self.job_X = self.jvec.fit_transform(jobs_corpus).toarray().astype(np.float32)
             joblib.dump(self.jvec, self.jvec_path); np.save(self.jX_path, self.job_X)
 
+        self.debug["jobs"]["tfidf_loaded"] = self.jvec_path.exists() and self.jX_path.exists() and self.job_X.shape[0] == len(self.jobs)
+
         # FAISS (jobs)
         if self.jfaiss_path.exists():
             self.jfaiss = faiss.read_index(str(self.jfaiss_path))
@@ -306,6 +170,8 @@ class DualMatcher:
             "model_name": self.model_name, "tfidf_min_df": 1, "tfidf_ngram": (1,2),
             "faiss_ntotal": int(self.jfaiss.ntotal)
         })
+
+        self.debug["jobs"]["faiss_loaded"] = self.jfaiss_path.exists() and self.jfaiss.ntotal == len(self.jobs)
 
         # ==== CANDIDATES STORE ====
         self.cands_dir = store_dir_for(store_root, "cands", self.cands_sig, self.cfg_sig)
@@ -328,6 +194,8 @@ class DualMatcher:
             self.cand_X = self.cvec.fit_transform(cands_corpus).toarray().astype(np.float32)
             joblib.dump(self.cvec, self.cvec_path); np.save(self.cX_path, self.cand_X)
 
+        self.debug["cands"]["tfidf_loaded"] = self.cvec_path.exists() and self.cX_path.exists() and self.cand_X.shape[0] == len(self.cands)
+
         # FAISS (cands)
         if self.cfaiss_path.exists():
             self.cfaiss = faiss.read_index(str(self.cfaiss_path))
@@ -338,11 +206,22 @@ class DualMatcher:
             cemb = self.model.encode(cands_corpus.tolist(), normalize_embeddings=True).astype(np.float32)
             self.cfaiss = faiss.IndexFlatIP(cemb.shape[1]); self.cfaiss.add(cemb); faiss.write_index(self.cfaiss, str(self.cfaiss_path))
 
+        self.debug["cands"]["faiss_loaded"] = self.cfaiss_path.exists() and self.cfaiss.ntotal == len(self.cands)
+
         write_manifest(self.cands_dir, {
             "sha256": self.cands_sig, "rows": int(len(self.cands)),
             "model_name": self.model_name, "tfidf_min_df": 1, "tfidf_ngram": (1,2),
             "faiss_ntotal": int(self.cfaiss.ntotal)
         })
+
+    def cache_status(self):
+        return {
+            "jobs_dir": str(self.jobs_dir),
+            "cands_dir": str(self.cands_dir),
+            "jobs_manifest": read_manifest(self.jobs_dir),
+            "cands_manifest": read_manifest(self.cands_dir),
+            "status": self.debug,
+        }
 
     # ---------- Candidate -> Jobs ----------
     def score_candidate_vs_jobs(
