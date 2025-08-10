@@ -119,31 +119,59 @@ def login_view():
             company_name = company_site = company_bio = ""
             posted_jobs = 0
 
-            # Role-specific sections appear ONLY after a role is chosen
-            if role == "candidate":
-                st.markdown("### Candidate details")
-                c1, c2 = st.columns(2)
-                with c1:
-                    cand_title = st.text_input("Candidate title (e.g., ML Engineer)")
-                    yoe = st.text_input("Years of experience (YOE)", value="0")
-                    seniority = st.text_input("Seniority (e.g., Mid-level / Intermediate)")
-                with c2:
-                    preferred_type = st.text_input("Preferred employment type (e.g., Full Time)")
-                    skills = st.text_input("Skills (comma-separated)")
-                about = st.text_area("About", height=90)
+            continue_button = st.form_submit_button("Continue")
+            if continue_button:
+                if not email or not full_name or not password or not password2 or not role:
+                    st.error("Please fill all required fields (*), including Role.")
+                elif password != password2:
+                    st.error("Passwords do not match.")
+                else:
+                    # Role-specific sections appear ONLY after a role is chosen
+                    if role == "candidate":
+                        st.markdown("### Complete your profile")
 
-            elif role == "recruiter":
-                st.markdown("### Recruiter details")
-                r1, r2 = st.columns(2)
-                with r1:
-                    company_name = st.text_input("Company name")
-                    company_site = st.text_input("Company site (URL)")
-                with r2:
-                    company_bio = st.text_area("Company bio", height=90)
-                posted_jobs = 0  # starting point
+                        uploaded_file = st.file_uploader("Upload your CV (PDF only)", type=["pdf"])
+                        if uploaded_file is not None:
+                            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                                tmp_file.write(uploaded_file.read())
+                                tmp_path = tmp_file.name
 
-            agree = st.checkbox("I confirm the information is correct", value=True)
-            submit_up = st.form_submit_button("Create account")
+                            # Extract text from PDF
+                            reader = PdfReader(tmp_path)
+                            cv_text = ""
+                            for page in reader.pages:
+                                cv_text += page.extract_text() + "\n"
+
+                            os.remove(tmp_path)
+
+                            st.text_area("Extracted CV Text (read-only)", cv_text, height=200)
+
+                            # Here you can call your CV parsing function
+                            parsed_data = extract_cv_fields(cv_text,st.session_state.full_name, st.session_state.user_email)
+
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                cand_title = st.text_input("Candidate title", value=parsed_data['candidate_title'])
+                                yoe = st.text_input("Years of experience (YOE)", value=parsed_data['yoe'])
+                                seniority = st.text_input("Seniority", value=parsed_data['seniority'])
+                            with c2:
+                                preferred_type = st.text_input("Preferred employment type", value=parsed_data['preferred_employment_type'])
+                                skills = st.text_input("Skills (comma-separated)")
+                            about = st.text_area("About", value=parsed_data['about'], height=90)
+
+
+                    elif role == "recruiter":
+                        st.markdown("### Recruiter details")
+                        r1, r2 = st.columns(2)
+                        with r1:
+                            company_name = st.text_input("Company name")
+                            company_site = st.text_input("Company site (URL)")
+                        with r2:
+                            company_bio = st.text_area("Company bio", height=90)
+                        posted_jobs = 0  # starting point
+
+            # agree = st.checkbox("I confirm the information is correct", value=True)
+                submit_up = st.form_submit_button("Create account")
 
         # Handle submit
         if submit_up:
@@ -286,64 +314,6 @@ def candidate_home(jobs: pd.DataFrame, cands: pd.DataFrame):
         })
     else:
         me_row = me.iloc[0]
-
-    # ---------------- New Section: Continue Button ----------------
-    st.subheader("Complete your profile")
-    choice = st.radio("How would you like to continue?", ["Upload PDF CV", "Fill Fields"], index=0)
-
-    if choice == "Upload PDF CV":
-        uploaded_file = st.file_uploader("Upload your CV (PDF only)", type=["pdf"])
-        if uploaded_file is not None:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                tmp_file.write(uploaded_file.read())
-                tmp_path = tmp_file.name
-
-            # Extract text from PDF
-            reader = PdfReader(tmp_path)
-            cv_text = ""
-            for page in reader.pages:
-                cv_text += page.extract_text() + "\n"
-
-            os.remove(tmp_path)
-
-            st.text_area("Extracted CV Text (read-only)", cv_text, height=200)
-
-            # Here you can call your CV parsing function
-            parsed_data = extract_cv_fields(cv_text,st.session_state.full_name, st.session_state.user_email)
-            
-            # Show extracted fields in a similar style to the minimal profile
-            st.subheader("Extracted Profile from CV")
-            st.write(f"**Full Name:** {parsed_data['full_name']}")
-            st.write(f"**Email:** {parsed_data['candidate_email']}")
-            st.write(f"**Title:** {parsed_data['candidate_title']}")
-            st.write(f"**About:** {parsed_data['about']}")
-            st.write(f"**Location:** {parsed_data['location']}")
-            st.write(f"**Preferred Employment Type:** {parsed_data['preferred_employment_type']}")
-            st.write(f"**Years of Experience:** {parsed_data['yoe']}")
-            st.write(f"**Seniority:** {parsed_data['seniority']}")
-            st.write(f"**Created At:** {parsed_data['created_at']}")
-
-    elif choice == "Fill Fields":
-        with st.form("manual_profile_form"):
-            full_name = st.text_input("Full Name", me_row["full_name"])
-            candidate_title = st.text_input("Professional Title", me_row["candidate_title"])
-            about = st.text_area("About", me_row["about"])
-            location = st.text_input("Location", me_row["location"])
-            preferred_employment_type = st.selectbox(
-                "Preferred Employment Type", ["Remote", "On-site", "Hybrid"], 
-                index=0 if not me_row["preferred_employment_type"] else
-                ["Remote", "On-site", "Hybrid"].index(me_row["preferred_employment_type"])
-            )
-            yoe = st.number_input("Years of Experience", min_value=0, step=1, value=int(me_row["yoe"]))
-            seniority = st.selectbox("Seniority", ["Junior", "Mid-level", "Senior"], 
-                                     index=0 if not me_row["seniority"] else
-                                     ["Junior", "Mid-level", "Senior"].index(me_row["seniority"]))
-
-            submitted = st.form_submit_button("Save Profile")
-            if submitted:
-                # Here you would save the filled data to DB
-                st.success("✅ Profile updated successfully!")
-    # ---------------------------------------------------------------
 
     # Skills processing
     skills_text = str(me_row.get("skills",""))
