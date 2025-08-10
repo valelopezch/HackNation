@@ -1,122 +1,132 @@
+# validate.py
+import hashlib
 import random
 import time
+import ast
+from typing import List, Dict, Any, Set, Optional
+
 import pandas as pd
 
-DEBUG_SNIPPETS = {
-    "mlops": [
-        {
-            "prompt": "Find the bug in this pipeline snippet (PyTorch training loop).",
-            "code": "for epoch in range(epochs):\n  model.train()\n  for X, y in loader:\n    preds = model(X)\n    loss = criterion(preds, y)\n    loss.backward()\n    optimizer.step()\n    # BUG: missing optimizer.zero_grad()",
-            "options": [
-                "The optimizer is never zeroed; add optimizer.zero_grad() before backward.",
-                "criterion should be called without preds.",
-                "Use model.eval() in training.",
-                "Data loader must be recreated in each epoch."
-            ],
-            "answer_idx": 0
-        }
-    ],
-    "llmops": [
-        {
-            "prompt": "RAG pipeline throughput is low. Best first fix?",
-            "code": "(No code)",
-            "options": [
-                "Increase chunk overlap to 80%",
-                "Batch embedding calls / enable async I/O to the vector DB",
-                "Use a larger LLM",
-                "Store documents as images"
-            ],
-            "answer_idx": 1
-        }
-    ],
-    "cv": [
-        {
-            "prompt": "Model underfits on CIFAR-10. What helps first?",
-            "code": "(No code)",
-            "options": [
-                "Drastically reduce training data",
-                "Remove all augmentation",
-                "Increase capacity (e.g., WiderResNet) and train longer with LR schedule",
-                "Disable normalization"
-            ],
-            "answer_idx": 2
-        }
-    ]
-}
+# ------------------------ Helpers & dataset loading ------------------------
 
-def _parse_skills_field(text):
+def _parse_skills_field(text) -> List[str]:
+    """(Kept for compatibility; unused now.)"""
     if not isinstance(text, str):
         return []
-    # split on commas or slashes or pipes
-    raw = [t.strip() for t in text.replace("/",",").replace("|",",").split(",")]
+    raw = [t.strip() for t in text.replace("/", ",").replace("|", ",").split(",")]
     return [r for r in raw if r]
 
-def build_quiz(job_row: pd.Series, global_skill_pool: list) -> list[dict]:
-    req_skills = _parse_skills_field(job_row.get("Skills/Tech-stack required",""))
-    topic = str(job_row.get("topic","")).lower()
-    area = "mlops" if "mlops" in topic else "llmops" if "llm" in topic else "cv" if "vision" in topic else "mlops"
-    decoys = [s for s in global_skill_pool if s not in req_skills]
-    random.shuffle(decoys)
+def extract_global_skill_pool(jobs_df: pd.DataFrame) -> List[str]:
+    """(Kept for compatibility; unused by quiz now.)"""
+    seen: Set[str] = set()
+    pool: List[str] = []
+    for s in jobs_df.get("Skills/Tech-stack required", []):
+        for x in _parse_skills_field(s):
+            if x not in seen:
+                seen.add(x)
+                pool.append(x)
+    return pool
 
-    quiz = []
+def _seed_from_job(job_row: pd.Series, salt: str = "") -> int:
+    """Stable, job-specific seed to make randomness deterministic across reruns."""
+    key = f"{job_row.get('job_id','')}|{job_row.get('job_title','')}|{job_row.get('topic','')}|{salt}"
+    return int(hashlib.blake2s(key.encode("utf-8"), digest_size=4).hexdigest(), 16)
 
-    # Q1: NOT required
-    opts = (req_skills[:2] + decoys[:2])[:4]
-    random.shuffle(opts)
-    quiz.append({
-        "type": "single",
-        "question": "Which of the following is NOT required for this job?",
-        "options": opts,
-        "answer_idx": opts.index(next((o for o in opts if o not in req_skills), opts[0]))
-    })
+def _safe_parse_options(obj: Any) -> List[str]:
+    """
+    'options' in CSV is a literal Python list string; parse robustly.
+    If parsing fails, fall back to simple splitting.
+    """
+    if isinstance(obj, list):
+        return [str(x) for x in obj]
+    if not isinstance(obj, str):
+        return []
+    txt = obj.strip()
+    try:
+        val = ast.literal_eval(txt)
+        if isinstance(val, (list, tuple)):
+            return [str(x) for x in val]
+    except Exception:
+        pass
+    parts = [p.strip().strip("[]'\" ") for p in txt.split(",")]
+    return [p for p in parts if p]
 
-    # Q2: YOE
-    y = str(job_row.get("yoe","")).strip() or "0"
-    opts = [y, "1", "2", "3", "5", "7"]
-    opts = list(dict.fromkeys(opts))[:4]  # unique, max 4
-    random.shuffle(opts)
-    quiz.append({
-        "type": "single",
-        "question": "What is the minimum years of experience (YOE) required?",
-        "options": opts,
-        "answer_idx": opts.index(str(y))
-    })
+def load_mcq_dataset(path: str) -> pd.DataFrame:
+    df = pd.read_csv(path)
+    req_cols = {"topic", "question", "options", "correct_answer"}
+    missing = req_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"MCQ file is missing columns: {missing}")
+    df["topic"] = df["topic"].astype(str)
+    df["question"] = df["question"].astype(str)
+    df["correct_answer"] = df["correct_answer"].astype(str)
+    df["options_parsed"] = df["options"].apply(_safe_parse_options)
+    df = df[df["options_parsed"].apply(lambda x: isinstance(x, list) and len(x) >= 2)].copy()
+    df = df[df.apply(lambda r: str(r["correct_answer"]) in [str(o) for o in r["options_parsed"]], axis=1)].copy()
+    return df.reset_index(drop=True)
 
-    # Q3: employment type
-    et = str(job_row.get("employment_type","")).strip() or "Full Time"
-    opts = [et, "Contract", "Part Time", "Internship"]
-    random.shuffle(opts)
-    quiz.append({
-        "type": "single",
-        "question": "What is the employment type for this role?",
-        "options": opts,
-        "answer_idx": opts.index(et)
-    })
+# ------------------------ Core quiz API (names unchanged) ------------------------
 
-    # Q4: central skills (multi)
-    correct = req_skills[:2] if len(req_skills)>=2 else req_skills[:1]
-    opts = list(dict.fromkeys((req_skills[:3] + decoys[:5])[:6]))
-    random.shuffle(opts)
-    quiz.append({
-        "type": "multi",
-        "question": "Select the TWO most central skills for this role:",
-        "options": opts,
-        "answer_set": set(correct[:2])
-    })
+def build_quiz(
+    job_row: pd.Series,
+    global_skill_pool: List[str],   # kept for signature compatibility; not used
+    *,
+    mcq_df: Optional[pd.DataFrame] = None,
+    seed: Optional[int] = None,
+    include_debug: bool = False,    # ignored; only dataset MCQs are used
+) -> List[Dict[str, Any]]:
+    """
+    Build a deterministic quiz with exactly 5 single-choice questions,
+    taken ONLY from the CSV dataset, filtered by the job's exact topic.
+    """
+    if mcq_df is None or mcq_df.empty:
+        return []
 
-    # Q5: tiny debug challenge
-    dbg = random.choice(DEBUG_SNIPPETS[area])
-    quiz.append({
-        "type": "single",
-        "question": dbg["prompt"],
-        "code": dbg["code"],
-        "options": dbg["options"],
-        "answer_idx": dbg["answer_idx"]
-    })
+    base_seed = _seed_from_job(job_row) if seed is None else seed
+    rng = random.Random(base_seed)
+
+    # Filter by exact topic (case-insensitive). If empty, fall back to all.
+    job_topic = str(job_row.get("topic", "")).strip()
+    pool = mcq_df[mcq_df["topic"].str.lower() == job_topic.lower()]
+    if pool.empty:
+        pool = mcq_df
+
+    # Pick up to 5 questions deterministically
+    n = min(5, len(pool))
+    idxs = list(range(len(pool)))
+    rng.shuffle(idxs)
+    chosen = [pool.iloc[i] for i in idxs[:n]]
+
+    quiz: List[Dict[str, Any]] = []
+    for row in chosen:
+        options = list(row["options_parsed"])
+        rng.shuffle(options)
+        answer_idx = options.index(str(row["correct_answer"]))
+        quiz.append(
+            {
+                "type": "single",
+                "question": row["question"],
+                "options": options,
+                "answer_idx": answer_idx,
+                "source_topic": row["topic"],
+            }
+        )
 
     return quiz
 
-def grade_quiz(answers: list, quiz: list) -> dict:
+def default_answers_skeleton(quiz: List[Dict[str, Any]]) -> List[Any]:
+    """Produce an answers list with proper shapes matching the quiz."""
+    ans: List[Any] = []
+    for q in quiz:
+        if q["type"] == "single":
+            ans.append(None)   # store selected option index (int)
+        elif q["type"] == "multi":
+            ans.append([])     # (not used now)
+        else:
+            ans.append(None)
+    return ans
+
+def grade_quiz(answers: List[Any], quiz: List[Dict[str, Any]]) -> Dict[str, Any]:
     score = 0
     max_score = len(quiz)
     for ans, q in zip(answers, quiz):
@@ -125,7 +135,12 @@ def grade_quiz(answers: list, quiz: list) -> dict:
                 score += 1
         elif q["type"] == "multi":
             sel = set(ans or [])
-            if sel == q["answer_set"]:
+            if sel == q.get("answer_set", set()):
                 score += 1
     pct = round(100.0 * score / max_score, 1) if max_score else 0.0
-    return {"score_raw": score, "score_max": max_score, "score_pct": pct, "timestamp": int(time.time())}
+    return {
+        "score_raw": score,
+        "score_max": max_score,
+        "score_pct": pct,
+        "timestamp": int(time.time()),
+    }

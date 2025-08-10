@@ -8,7 +8,8 @@ from data_utils import (
     candidate_skills_map, global_skill_pool_from_candidates
 )
 from embed import HybridMatcher, build_candidate_text
-from validate import build_quiz, grade_quiz
+from validate import build_quiz, grade_quiz, load_mcq_dataset, default_answers_skeleton
+
 
 st.set_page_config(page_title="TalentAI", page_icon="🧠", layout="wide")
 
